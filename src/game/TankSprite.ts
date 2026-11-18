@@ -33,7 +33,7 @@ export class TankSprite {
 
     this.hull = scene.add.image(0, 0, `tank_hull_${skinKey}`);
     this.turret = scene.add.image(0, 0, `tank_turret_${skinKey}`);
-    this.turret.setOrigin(0.38, 0.5);
+    this.turret.setOrigin(0.5, 0.5);
 
     this.shieldRing = scene.add.image(0, 0, 'shield_ring');
     this.shieldRing.setVisible(false);
@@ -121,30 +121,38 @@ export class TankSprite {
     this.uiLayer.setPosition(x, y - 36);
 
     this.hull.setRotation(hullAngle);
-    this.turret.setRotation(aimAngle);
+    this.turret.setRotation(hullAngle);
 
-    // Recoil spring back
+    // Recoil spring back along facing direction
     if (this.recoilOffset > 0.05) {
       this.recoilOffset *= Math.pow(0.75, dt * 60);
       this.turret.setPosition(
-        -Math.cos(aimAngle) * this.recoilOffset,
-        -Math.sin(aimAngle) * this.recoilOffset
+        -Math.cos(hullAngle) * this.recoilOffset,
+        -Math.sin(hullAngle) * this.recoilOffset
       );
     } else {
       this.recoilOffset = 0;
       this.turret.setPosition(0, 0);
     }
 
-    // Forward hull indicator line for local player so auto-rotation drive vector is effortless to read
+    // Forward directional arrow aligned strictly with hull chevron and cannon barrel
     if (this.isLocal) {
       this.aimGuide.clear();
       const fx = Math.cos(hullAngle);
       const fy = Math.sin(hullAngle);
-      this.aimGuide.lineStyle(2, 0xfbbf24, 0.55);
-      this.aimGuide.lineBetween(fx * 24, fy * 24, fx * 42, fy * 42);
-      // Small triangle tip
-      this.aimGuide.fillStyle(0xfbbf24, 0.75);
-      this.aimGuide.fillCircle(fx * 44, fy * 44, 2.5);
+      const px = -fy;
+      const py = fx;
+      this.aimGuide.lineStyle(2.5, 0xfbbf24, 0.78);
+      this.aimGuide.lineBetween(fx * 35, fy * 35, fx * 50, fy * 50);
+      this.aimGuide.fillStyle(0xfde047, 0.92);
+      this.aimGuide.fillTriangle(
+        fx * 58,
+        fy * 58,
+        fx * 47 + px * 5,
+        fy * 47 + py * 5,
+        fx * 47 - px * 5,
+        fy * 47 - py * 5
+      );
     }
 
     // Invincibility or Shield power-up visual

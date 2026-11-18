@@ -38,7 +38,7 @@ interface PlayerSession {
   connected: boolean;
   disconnectedAt: number;
   input: PlayerInputState;
-  pendingShots: number[]; // queued aimAngles
+  pendingShots: number;
 }
 
 export class GameRoom {
@@ -189,7 +189,7 @@ export class GameRoom {
       connected: true,
       disconnectedAt: 0,
       input: { seq: 0, thrust: false, aimAngle: 0 },
-      pendingShots: [],
+      pendingShots: 0,
     };
     this.sessions.set(playerId, session);
     this.socketToPlayer.set(socketId, playerId);
@@ -385,7 +385,7 @@ export class GameRoom {
 
     this.tanks = [];
     for (const session of this.sessions.values()) {
-      session.pendingShots = [];
+      session.pendingShots = 0;
       this.tanks.push(this.createTankForSession(session, nowMs));
     }
 
@@ -424,14 +424,14 @@ export class GameRoom {
     };
   }
 
-  handleShoot(socketId: string, aimAngle: number): void {
+  handleShoot(socketId: string, _aimAngle?: number): void {
     if (this.status !== 'playing') return;
     const playerId = this.socketToPlayer.get(socketId);
     if (!playerId) return;
     const session = this.sessions.get(playerId);
-    if (!session || !Number.isFinite(aimAngle)) return;
-    if (session.pendingShots.length < 3) {
-      session.pendingShots.push(aimAngle);
+    if (!session) return;
+    if (session.pendingShots < 3) {
+      session.pendingShots += 1;
     }
   }
 
@@ -480,6 +480,8 @@ export class GameRoom {
     });
     const pos = selectSafeSpawn(spawns, enemies, map.obstacles);
 
+    const spawnAngle = Math.random() * Math.PI * 2 - Math.PI;
+
     return {
       id: session.playerId,
       nickname: session.nickname,
@@ -489,8 +491,8 @@ export class GameRoom {
       y: pos.y,
       vx: 0,
       vy: 0,
-      angle: Math.random() * Math.PI * 2 - Math.PI,
-      aimAngle: 0,
+      angle: spawnAngle,
+      aimAngle: spawnAngle,
       hp: 100,
       maxHp: 100,
       ammo: this.settings.maxAmmo,
@@ -603,20 +605,19 @@ export class GameRoom {
       const session = this.sessions.get(tank.id);
       if (!session || !session.connected) continue;
 
-      tank.aimAngle = session.input.aimAngle;
       tank.lastProcessedSeq = session.input.seq;
       stepTankMotion(tank, session.input.thrust, dt, map, this.settings, nowMs);
+      tank.aimAngle = tank.angle;
 
       const refilled = tickAmmoRegen(tank, dt, this.settings);
       if (refilled) {
         this.io.to(session.socketId).emit('ammo:refilled', { ammo: tank.ammo });
       }
 
-      if (session.pendingShots.length > 0) {
-        const aimAngle = session.pendingShots.shift()!;
+      if (session.pendingShots > 0) {
+        session.pendingShots -= 1;
         this.combat.tryFire(
           tank,
-          aimAngle,
           this.settings,
           nowMs,
           this.projectiles,

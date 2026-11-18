@@ -130,8 +130,10 @@ export function stepTankMotion(
     return;
   }
 
-  // Continuous automatic rotation
-  tank.angle = normalizeAngle(tank.angle + settings.tankRotationSpeed * dt);
+  // Rotate continuously only while stationary; lock angle while Spacebar thrust is held
+  if (!thrust) {
+    tank.angle = normalizeAngle(tank.angle + settings.tankRotationSpeed * dt);
+  }
 
   const speedMultiplier = hasPowerUp(tank, 'speed', nowMs)
     ? SPEED_BOOST_MULTIPLIER

@@ -27,7 +27,6 @@ export class CombatSystem {
 
   tryFire(
     shooter: TankEntity,
-    aimAngle: number,
     settings: GameSettings,
     nowMs: number,
     projectiles: ProjectileEntity[],
@@ -35,13 +34,14 @@ export class CombatSystem {
   ): ProjectileEntity | null {
     if (!canTankFire(shooter, nowMs, settings)) return null;
 
-    shooter.aimAngle = aimAngle;
+    const fireAngle = shooter.angle;
+    shooter.aimAngle = fireAngle;
     shooter.lastShotAt = nowMs;
     consumeAmmo(shooter, nowMs);
 
     const muzzleDist = TANK_RADIUS + 8;
-    const spawnX = shooter.x + Math.cos(aimAngle) * muzzleDist;
-    const spawnY = shooter.y + Math.sin(aimAngle) * muzzleDist;
+    const spawnX = shooter.x + Math.cos(fireAngle) * muzzleDist;
+    const spawnY = shooter.y + Math.sin(fireAngle) * muzzleDist;
     const isDoubleDamage = hasPowerUp(shooter, 'double_damage', nowMs);
 
     const proj: ProjectileEntity = {
@@ -50,8 +50,8 @@ export class CombatSystem {
       team: shooter.team,
       x: spawnX,
       y: spawnY,
-      vx: Math.cos(aimAngle) * settings.projectileSpeed,
-      vy: Math.sin(aimAngle) * settings.projectileSpeed,
+      vx: Math.cos(fireAngle) * settings.projectileSpeed,
+      vy: Math.sin(fireAngle) * settings.projectileSpeed,
       damage: settings.projectileDamage,
       distanceTraveled: 0,
       maxRange: settings.projectileRange,

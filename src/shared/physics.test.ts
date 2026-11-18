@@ -72,23 +72,30 @@ test('all 7 arena maps have non-overlapping spawns, bases, and crate zones', () 
   }
 });
 
-test('tank rotates continuously even without thrust and moves forward along angle when Spacebar held', () => {
+test('tank rotates continuously while idle, locks angle during Spacebar thrust, and resumes rotating on release', () => {
   const map = ARENA_MAPS.desert;
   const tank = makeTank({ x: 900, y: 300, angle: 0 });
   const initialAngle = tank.angle;
 
+  // Idle -> rotates continuously, does not move
   stepTankMotion(tank, false, 0.25, map, DEFAULT_GAME_SETTINGS, 1000);
-  assert.ok(tank.angle > initialAngle, 'tank should auto-rotate continuously');
+  assert.ok(tank.angle > initialAngle, 'tank should auto-rotate while Spacebar is not held');
   assert.equal(tank.x, 900);
   assert.equal(tank.y, 300);
 
-  // Hold Spacebar (thrust = true)
+  // Hold Spacebar -> angle locks and tank drives straight along locked angle
+  const lockedAngle = tank.angle;
   const beforeX = tank.x;
   const beforeY = tank.y;
   for (let i = 0; i < 10; i++) {
     stepTankMotion(tank, true, 0.04, map, DEFAULT_GAME_SETTINGS, 1000 + i * 40);
+    assert.equal(tank.angle, lockedAngle, 'angle must remain locked while thrust is held');
   }
   assert.ok(Math.hypot(tank.x - beforeX, tank.y - beforeY) > 10, 'tank should move forward with thrust');
+
+  // Release Spacebar -> resumes rotating
+  stepTankMotion(tank, false, 0.2, map, DEFAULT_GAME_SETTINGS, 1500);
+  assert.notEqual(tank.angle, lockedAngle, 'tank should resume rotating after thrust release');
 });
 
 test('tank collides with obstacles and clamps inside map bounds', () => {

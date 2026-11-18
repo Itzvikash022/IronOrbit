@@ -142,7 +142,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
       {/* Single flat control hint line in bottom safe margin */}
       <footer className="relative z-10 px-6 sm:px-14 lg:px-20 pb-5">
         <p className="text-xs text-slate-300/85 tracking-wide font-medium">
-          Space Hold to Drive · Mouse Aim · Left Click Fire · Tab Leaderboard · M Mute · Esc Pause
+          Space Hold to Lock &amp; Drive · Left Click Fire Ahead · Tab Leaderboard · M Mute · Esc Pause
         </p>
       </footer>
     </div>

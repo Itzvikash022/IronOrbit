@@ -16,6 +16,7 @@ import {
   MatchSnapshot,
   TankEntity,
 } from '../shared/types';
+import { Minimap } from './Minimap';
 import { PowerUpSvgIcon } from './PowerUpSvgIcon';
 
 interface GameHudProps {
@@ -515,9 +516,12 @@ export const GameHud: React.FC<GameHudProps> = ({
           <div />
         )}
 
-        {/* Bottom-Right Subtle Control Reminder */}
-        <div className="hidden sm:block text-xs text-slate-300/75 bg-[#0b0f14]/75 border border-slate-800/70 rounded-lg px-3 py-1.5">
-          Space Drive · Click Shoot · Tab Leaderboard
+        {/* Bottom-Right Tactical Minimap & Compact Control Hint */}
+        <div className="flex flex-col items-end gap-1.5">
+          <Minimap snapshot={snapshot} localPlayerId={localPlayerId} />
+          <div className="hidden sm:block text-[11px] text-slate-300/75 bg-[#0b0f14]/80 border border-slate-800/70 rounded-lg px-2.5 py-1">
+            Space Lock &amp; Drive · Click Shoot · Tab Leaderboard
+          </div>
         </div>
       </div>
     </div>

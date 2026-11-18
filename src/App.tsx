@@ -160,7 +160,7 @@ export default function App() {
           localPrev?.deaths !== localNext?.deaths ||
           localPrev?.score !== localNext?.score ||
           (localPrev?.activePowerUps.length ?? 0) !== (localNext?.activePowerUps.length ?? 0) ||
-          now - lastHudSyncAtRef.current >= 220;
+          now - lastHudSyncAtRef.current >= 100;
 
         if (changedDiscrete) {
           lastHudSnapRef.current = snap;

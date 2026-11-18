@@ -80,7 +80,6 @@ export class ArenaScene extends Phaser.Scene {
   private redFlagSprite?: Phaser.GameObjects.Image;
   private blueFlagSprite?: Phaser.GameObjects.Image;
   private muzzleFlash?: Phaser.GameObjects.Image;
-  private crosshair?: Phaser.GameObjects.Graphics;
 
   // Input state
   private spaceHeld = false;
@@ -88,9 +87,6 @@ export class ArenaScene extends Phaser.Scene {
   private inputSeq = 0;
   private lastSentInputAt = 0;
   private lastSentThrust = false;
-  private lastMouseWorldX = 900;
-  private lastMouseWorldY = 600;
-  private lastAimAngle = 0;
 
   // Juice / camera
   private hitstopTimer = 0;
@@ -133,24 +129,8 @@ export class ArenaScene extends Phaser.Scene {
     this.blueFlagSprite = this.add.image(-999, -999, 'flag_blue').setDepth(14).setVisible(false);
     this.muzzleFlash = this.add.image(-999, -999, 'muzzle_flash').setDepth(24).setVisible(false);
 
-    this.crosshair = this.add.graphics().setDepth(40);
-    this.drawCrosshair();
-
     this.setupInputs();
     this.enterAttractMode(this.activeMapId);
-  }
-
-  private drawCrosshair(): void {
-    if (!this.crosshair) return;
-    this.crosshair.clear();
-    this.crosshair.lineStyle(2, 0xfbbf24, 0.9);
-    this.crosshair.strokeCircle(0, 0, 10);
-    this.crosshair.lineBetween(-15, 0, -6, 0);
-    this.crosshair.lineBetween(6, 0, 15, 0);
-    this.crosshair.lineBetween(0, -15, 0, -6);
-    this.crosshair.lineBetween(0, 6, 0, 15);
-    this.crosshair.fillStyle(0xfef08a, 1);
-    this.crosshair.fillCircle(0, 0, 2);
   }
 
   private setupInputs(): void {
@@ -189,32 +169,18 @@ export class ArenaScene extends Phaser.Scene {
       if (!this.inputEnabled || this.sceneMode !== 'active') return;
       if (pointer.leftButtonDown()) {
         this.pointerDown = true;
-        this.fireFromPointer(pointer);
+        this.fireForward();
       }
     });
 
     this.input.on('pointerup', () => {
       this.pointerDown = false;
     });
-
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-      this.lastMouseWorldX = worldPt.x;
-      this.lastMouseWorldY = worldPt.y;
-    });
   }
 
-  private fireFromPointer(pointer: Phaser.Input.Pointer): void {
+  private fireForward(): void {
     if (!this.localPredTank || !this.localPredTank.alive) return;
-    const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-    this.lastMouseWorldX = worldPt.x;
-    this.lastMouseWorldY = worldPt.y;
-    const aimAngle = Math.atan2(
-      worldPt.y - this.localPredTank.y,
-      worldPt.x - this.localPredTank.x
-    );
-    this.lastAimAngle = aimAngle;
-    this.bridge?.onSendShoot(aimAngle);
+    this.bridge?.onSendShoot(this.localPredTank.angle);
   }
 
   enterAttractMode(mapId: MapId = 'industrial'): void {
@@ -226,7 +192,6 @@ export class ArenaScene extends Phaser.Scene {
     const map = ARENA_MAPS[mapId];
     this.mapRenderer.render(map, 'ctf');
     this.cameras.main.setBounds(0, 0, map.width, map.height);
-    this.crosshair?.setVisible(false);
     this.redFlagSprite?.setVisible(true).setPosition(map.redBase.x, map.redBase.y);
     this.blueFlagSprite?.setVisible(true).setPosition(map.blueBase.x, map.blueBase.y);
 
@@ -236,13 +201,13 @@ export class ArenaScene extends Phaser.Scene {
     this.attractPropA = this.add
       .container(520, 600, [
         this.add.image(0, 0, 'tank_hull_red'),
-        this.add.image(0, 0, 'tank_turret_red').setOrigin(0.38, 0.5),
+        this.add.image(0, 0, 'tank_turret_red').setOrigin(0.5, 0.5),
       ])
       .setDepth(15);
     this.attractPropB = this.add
       .container(1280, 600, [
         this.add.image(0, 0, 'tank_hull_blue'),
-        this.add.image(0, 0, 'tank_turret_blue').setOrigin(0.38, 0.5),
+        this.add.image(0, 0, 'tank_turret_blue').setOrigin(0.5, 0.5),
       ])
       .setDepth(15);
   }
@@ -271,7 +236,6 @@ export class ArenaScene extends Phaser.Scene {
     const map = ARENA_MAPS[mapId];
     this.mapRenderer.render(map, mode);
     this.cameras.main.setBounds(0, 0, map.width, map.height);
-    this.crosshair?.setVisible(true);
 
     if (initialSnapshot) {
       this.applySnapshot(initialSnapshot);
@@ -581,18 +545,6 @@ export class ArenaScene extends Phaser.Scene {
 
     // 1. Update local predicted tank + send inputs at ~25Hz or on state edge
     if (this.localPredTank) {
-      const pointer = this.input.activePointer;
-      const worldPt = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-      if (Number.isFinite(worldPt.x) && Number.isFinite(worldPt.y)) {
-        this.lastMouseWorldX = worldPt.x;
-        this.lastMouseWorldY = worldPt.y;
-      }
-
-      this.lastAimAngle = Math.atan2(
-        this.lastMouseWorldY - this.localPredTank.y,
-        this.lastMouseWorldX - this.localPredTank.x
-      );
-
       if (simDt > 0) {
         stepTankMotion(
           this.localPredTank,
@@ -613,12 +565,9 @@ export class ArenaScene extends Phaser.Scene {
         this.bridge?.onSendInput({
           seq: ++this.inputSeq,
           thrust: this.spaceHeld,
-          aimAngle: this.lastAimAngle,
+          aimAngle: this.localPredTank.angle,
         });
       }
-
-      // Position crosshair at cursor world coordinate
-      this.crosshair?.setPosition(this.lastMouseWorldX, this.lastMouseWorldY);
     }
 
     // 2. Render all tank sprites (local predicted, remote interpolated)
@@ -633,7 +582,7 @@ export class ArenaScene extends Phaser.Scene {
             this.localPredTank.x,
             this.localPredTank.y,
             this.localPredTank.angle,
-            this.lastAimAngle,
+            this.localPredTank.angle,
             this.localPredTank,
             serverNow,
             rawDt
@@ -644,9 +593,7 @@ export class ArenaScene extends Phaser.Scene {
           const iy = Phaser.Math.Linear(entry.prevY, entry.targetY, alpha);
           const angDiff = normalizeAngle(entry.targetAngle - entry.prevAngle);
           const ia = normalizeAngle(entry.prevAngle + angDiff * alpha);
-          const aimDiff = normalizeAngle(entry.targetAim - entry.prevAim);
-          const iaim = normalizeAngle(entry.prevAim + aimDiff * alpha);
-          entry.sprite.update(ix, iy, ia, iaim, srvTank, serverNow, rawDt);
+          entry.sprite.update(ix, iy, ia, ia, srvTank, serverNow, rawDt);
         }
       }
     }
@@ -701,13 +648,13 @@ export class ArenaScene extends Phaser.Scene {
       const hull = this.attractPropA.list[0] as Phaser.GameObjects.Image;
       const turret = this.attractPropA.list[1] as Phaser.GameObjects.Image;
       hull.rotation += dt * 1.8;
-      turret.rotation = Math.sin(this.attractTime * 0.9) * 0.6;
+      turret.rotation = hull.rotation;
     }
     if (this.attractPropB) {
       const hull = this.attractPropB.list[0] as Phaser.GameObjects.Image;
       const turret = this.attractPropB.list[1] as Phaser.GameObjects.Image;
       hull.rotation -= dt * 1.8;
-      turret.rotation = Math.PI + Math.cos(this.attractTime * 0.8) * 0.5;
+      turret.rotation = hull.rotation;
     }
 
     this.updateAmbientBiome(dt, map.palette.ambientEffect, map.width, map.height);
