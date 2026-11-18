@@ -1,0 +1,6 @@
+{
+  "name": "Iron Orbit — Tank Battle Arena",
+  "description": "Real-time multiplayer 2D top-down auto-rotating tank battle arena with Deathmatch and Capture the Flag modes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
