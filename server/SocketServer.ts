@@ -1,4 +1,4 @@
-import { Server, Socket } from 'socket.io';
+import { Server, type Socket } from 'socket.io';
 import type { GameMode, GameSettings, MapId, PlayerInputState } from '../src/shared/types.ts';
 import { RoomManager } from './RoomManager.ts';
 

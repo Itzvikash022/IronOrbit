@@ -8,7 +8,7 @@ import {
 import { ARENA_MAPS, getRandomMapId } from '../src/shared/maps.ts';
 import {
   registerFireClick,
-  RotationFlipState,
+  type RotationFlipState,
   selectSafeSpawn,
   stepRotationFlip,
   stepTankMotion,
