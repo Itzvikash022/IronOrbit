@@ -7,6 +7,7 @@ import {
   Settings,
   Flag,
   ShieldCheck,
+  Wifi,
 } from 'lucide-react';
 import { POWERUP_META } from '../shared/config';
 import { ARENA_MAPS } from '../shared/maps';
@@ -23,6 +24,7 @@ interface GameHudProps {
   snapshot: MatchSnapshot | null;
   localPlayerId: string;
   roomCode: string;
+  pingMs: number | null;
   muted: boolean;
   showLeaderboard: boolean;
   killFeed: KillFeedEvent[];
@@ -50,6 +52,7 @@ export const GameHud: React.FC<GameHudProps> = ({
   snapshot,
   localPlayerId,
   roomCode,
+  pingMs,
   muted,
   showLeaderboard,
   killFeed,
@@ -86,7 +89,7 @@ export const GameHud: React.FC<GameHudProps> = ({
     <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-4">
       {/* Top Row: Left Map/Room Info | Center Timer & Mode Score | Right K/D & Controls */}
       <div className="flex items-start justify-between gap-4">
-        {/* Top-Left: Map & Room Code */}
+        {/* Top-Left: Map, Room Code & Live Ping */}
         <div className="bg-[#0b0f14]/88 border border-slate-700/70 rounded-lg px-3.5 py-2 shadow-lg">
           <div className="font-display font-bold text-base tracking-wide text-slate-100 leading-tight">
             {map.name}
@@ -95,10 +98,27 @@ export const GameHud: React.FC<GameHudProps> = ({
             <span>{snapshot.mode === 'ctf' ? 'Capture the Flag' : 'Deathmatch'}</span>
             <span aria-hidden="true">·</span>
             <span className="font-mono-num text-amber-400 font-semibold">{roomCode}</span>
+            <span aria-hidden="true">·</span>
+            <span
+              data-testid="hud-ping"
+              className={`inline-flex items-center gap-1 font-mono-num font-semibold ${
+                pingMs === null
+                  ? 'text-slate-400'
+                  : pingMs <= 80
+                    ? 'text-emerald-400'
+                    : pingMs <= 160
+                      ? 'text-amber-400'
+                      : 'text-red-400'
+              }`}
+              title="Network round-trip latency"
+            >
+              <Wifi className="w-3 h-3" />
+              <span>{pingMs === null ? '-- ms' : `${pingMs} ms`}</span>
+            </span>
           </div>
         </div>
 
-        {/* Top-Center: Match Timer & Team/Leader Score */}
+        {/* Top-Center: Match Timer, Milestone Target & Mode Score */}
         <div className="bg-[#0b0f14]/90 border border-slate-700/70 rounded-lg px-5 py-2 shadow-lg flex items-center gap-5">
           {snapshot.mode === 'ctf' ? (
             <>
@@ -127,6 +147,11 @@ export const GameHud: React.FC<GameHudProps> = ({
                 >
                   {formatTimer(snapshot.timeRemainingSec)}
                 </div>
+                {snapshot.ctfWinMode === 'milestone' && (
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-sky-400 mt-1">
+                    First to {snapshot.flagTarget}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2.5">
@@ -149,17 +174,25 @@ export const GameHud: React.FC<GameHudProps> = ({
             </>
           ) : (
             <div className="flex items-center gap-5">
-              <div
-                data-testid="hud-timer"
-                className="font-mono-num font-bold text-2xl text-slate-100 leading-none"
-              >
-                {formatTimer(snapshot.timeRemainingSec)}
+              <div className="text-center">
+                <div
+                  data-testid="hud-timer"
+                  className="font-mono-num font-bold text-2xl text-slate-100 leading-none"
+                >
+                  {formatTimer(snapshot.timeRemainingSec)}
+                </div>
+                {snapshot.dmWinMode === 'milestone' && (
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-400 mt-1">
+                    Target {snapshot.killTarget} K
+                  </div>
+                )}
               </div>
               {snapshot.leaderboard[0] && (
                 <div className="pl-4 border-l border-slate-800 text-xs">
                   <div className="text-slate-400">Leader</div>
                   <div className="font-semibold text-amber-400 tabular-nums">
-                    {snapshot.leaderboard[0].nickname} · {snapshot.leaderboard[0].kills} K
+                    {snapshot.leaderboard[0].nickname} · {snapshot.leaderboard[0].kills}
+                    {snapshot.dmWinMode === 'milestone' ? `/${snapshot.killTarget}` : ''} K
                   </div>
                 </div>
               )}
@@ -520,7 +553,7 @@ export const GameHud: React.FC<GameHudProps> = ({
         <div className="flex flex-col items-end gap-1.5">
           <Minimap snapshot={snapshot} localPlayerId={localPlayerId} />
           <div className="hidden sm:block text-[11px] text-slate-300/75 bg-[#0b0f14]/80 border border-slate-800/70 rounded-lg px-2.5 py-1">
-            Space Lock &amp; Drive · Click Shoot · Tab Leaderboard
+            Space Lock &amp; Drive · Click Shoot &amp; Flip Spin · Tab Leaderboard
           </div>
         </div>
       </div>

@@ -36,6 +36,7 @@ export interface GameModeHandler {
   buildMatchResult(
     map: ArenaMap,
     durationSec: number,
+    endReason: 'milestone' | 'timer',
     tanks: TankEntity[],
     teamScores: { red: number; blue: number }
   ): MatchResult;
@@ -71,6 +72,7 @@ class DeathmatchHandler implements GameModeHandler {
   buildMatchResult(
     map: ArenaMap,
     durationSec: number,
+    endReason: 'milestone' | 'timer',
     tanks: TankEntity[],
     teamScores: { red: number; blue: number }
   ): MatchResult {
@@ -82,6 +84,7 @@ class DeathmatchHandler implements GameModeHandler {
       mode: 'deathmatch',
       mapId: map.id,
       durationSec,
+      endReason,
       winnerId: top ? top.id : null,
       winnerName: top ? top.nickname : 'No Contest',
       winningTeam: 'none',
@@ -199,6 +202,7 @@ class CaptureTheFlagHandler implements GameModeHandler {
   buildMatchResult(
     map: ArenaMap,
     durationSec: number,
+    endReason: 'milestone' | 'timer',
     tanks: TankEntity[],
     teamScores: { red: number; blue: number }
   ): MatchResult {
@@ -229,6 +233,7 @@ class CaptureTheFlagHandler implements GameModeHandler {
       mode: 'ctf',
       mapId: map.id,
       durationSec,
+      endReason,
       winnerId: leaderboard[0]?.id ?? null,
       winnerName,
       winningTeam,

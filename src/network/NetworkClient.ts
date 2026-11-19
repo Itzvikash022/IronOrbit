@@ -25,9 +25,17 @@ function getOrCreatePlayerId(): string {
   return fresh;
 }
 
+export interface RoomSyncPayload {
+  room: RoomInfo;
+  snapshot: MatchSnapshot | null;
+  matchResult: MatchResult | null;
+}
+
 export interface NetworkListeners {
   onConnectChange?: (connected: boolean) => void;
   onRoomUpdated?: (room: RoomInfo) => void;
+  onRejoinedRoom?: (payload: RoomSyncPayload) => void;
+  onSessionExpired?: (reason: string) => void;
   onMatchStarted?: (payload: { room: RoomInfo; snapshot: MatchSnapshot }) => void;
   onMatchSnapshot?: (snapshot: MatchSnapshot) => void;
   onShotFired?: (payload: {
@@ -67,6 +75,7 @@ export interface NetworkListeners {
     temporary: boolean;
     reason?: string;
   }) => void;
+  onPlayerReconnected?: (payload: { playerId: string; nickname: string }) => void;
 }
 
 export class NetworkClient {
@@ -74,6 +83,9 @@ export class NetworkClient {
   readonly playerId: string;
   private listeners: NetworkListeners = {};
   private lastPingMs = 0;
+  private activeRoomCode: string | null = null;
+  private activeNickname: string | null = null;
+  private rejoinInFlight = false;
 
   constructor() {
     this.playerId = getOrCreatePlayerId();
@@ -83,17 +95,41 @@ export class NetworkClient {
     this.listeners = listeners;
   }
 
+  hasActiveRoom(): boolean {
+    return Boolean(this.activeRoomCode && this.activeNickname);
+  }
+
+  clearActiveRoom(): void {
+    this.activeRoomCode = null;
+    this.activeNickname = null;
+  }
+
   connect(): Socket {
-    if (this.socket) return this.socket;
-    this.socket = io({
+    if (this.socket) {
+      if (this.socket.disconnected) {
+        this.socket.connect();
+      }
+      return this.socket;
+    }
+
+    const serverUrl = (import.meta.env.VITE_SERVER_URL as string | undefined)?.trim();
+    const opts = {
       transports: ['websocket', 'polling'],
+      upgrade: true,
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 600,
-    });
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      timeout: 20000,
+    };
+
+    this.socket = serverUrl ? io(serverUrl, opts) : io(opts);
 
     this.socket.on('connect', () => {
       this.listeners.onConnectChange?.(true);
+      if (this.activeRoomCode && this.activeNickname) {
+        void this.rejoinActiveRoom();
+      }
     });
     this.socket.on('disconnect', () => {
       this.listeners.onConnectChange?.(false);
@@ -144,8 +180,95 @@ export class NetworkClient {
     this.socket.on('player:disconnected', (payload) => {
       this.listeners.onPlayerDisconnected?.(payload);
     });
+    this.socket.on('player:reconnected', (payload) => {
+      this.listeners.onPlayerReconnected?.(payload);
+    });
 
     return this.socket;
+  }
+
+  private async rejoinActiveRoom(): Promise<void> {
+    if (this.rejoinInFlight || !this.activeRoomCode || !this.activeNickname || !this.socket?.connected) {
+      return;
+    }
+    this.rejoinInFlight = true;
+    const code = this.activeRoomCode;
+    const nickname = this.activeNickname;
+    try {
+      const res = await new Promise<
+        | ({ ok: true } & RoomSyncPayload)
+        | { ok: false; error: string }
+      >((resolve) => {
+        this.socket!.timeout(10000).emit(
+          'room:join',
+          { code, playerId: this.playerId, nickname },
+          (
+            err: Error | null,
+            ack?: ({ ok: true } & RoomSyncPayload) | { ok: false; error: string }
+          ) => {
+            if (err || !ack) {
+              resolve({ ok: false, error: '__timeout__' });
+              return;
+            }
+            resolve(ack);
+          }
+        );
+      });
+
+      // Ignore if the user intentionally left while rejoin was in flight
+      if (this.activeRoomCode !== code) return;
+
+      if (res.ok) {
+        this.listeners.onRejoinedRoom?.({
+          room: res.room,
+          snapshot: res.snapshot,
+          matchResult: res.matchResult ?? null,
+        });
+      } else if (res.error !== '__timeout__') {
+        this.clearActiveRoom();
+        this.listeners.onSessionExpired?.(res.error);
+      }
+    } finally {
+      this.rejoinInFlight = false;
+    }
+  }
+
+  async syncCurrentRoom(): Promise<void> {
+    if (!this.activeRoomCode || !this.activeNickname) return;
+    const socket = this.connect();
+    if (!socket.connected) {
+      socket.connect();
+      return;
+    }
+
+    const res = await new Promise<
+      | ({ ok: true } & RoomSyncPayload)
+      | { ok: false; error: string }
+    >((resolve) => {
+      socket.timeout(8000).emit(
+        'room:sync',
+        (
+          err: Error | null,
+          ack?: ({ ok: true } & RoomSyncPayload) | { ok: false; error: string }
+        ) => {
+          if (err || !ack) {
+            resolve({ ok: false, error: '__timeout__' });
+            return;
+          }
+          resolve(ack);
+        }
+      );
+    });
+
+    if (res.ok) {
+      this.listeners.onRejoinedRoom?.({
+        room: res.room,
+        snapshot: res.snapshot,
+        matchResult: res.matchResult ?? null,
+      });
+    } else if (res.error !== '__timeout__') {
+      await this.rejoinActiveRoom();
+    }
   }
 
   async createRoom(
@@ -154,10 +277,24 @@ export class NetworkClient {
   ): Promise<{ ok: true; room: RoomInfo } | { ok: false; error: string }> {
     const socket = this.connect();
     return new Promise((resolve) => {
-      socket.emit(
+      socket.timeout(10000).emit(
         'room:create',
         { playerId: this.playerId, nickname, settings },
-        (res: { ok: true; room: RoomInfo } | { ok: false; error: string }) => {
+        (
+          err: Error | null,
+          res?: { ok: true; room: RoomInfo } | { ok: false; error: string }
+        ) => {
+          if (err || !res) {
+            resolve({
+              ok: false,
+              error: 'Server did not respond. Please check your connection and try again.',
+            });
+            return;
+          }
+          if (res.ok) {
+            this.activeRoomCode = res.room.code;
+            this.activeNickname = nickname;
+          }
           resolve(res);
         }
       );
@@ -168,19 +305,38 @@ export class NetworkClient {
     code: string,
     nickname: string
   ): Promise<
-    | { ok: true; room: RoomInfo; snapshot: MatchSnapshot | null }
+    | ({ ok: true } & RoomSyncPayload)
     | { ok: false; error: string }
   > {
     const socket = this.connect();
     return new Promise((resolve) => {
-      socket.emit(
+      socket.timeout(10000).emit(
         'room:join',
         { code, playerId: this.playerId, nickname },
         (
-          res:
-            | { ok: true; room: RoomInfo; snapshot: MatchSnapshot | null }
+          err: Error | null,
+          res?:
+            | ({ ok: true } & RoomSyncPayload)
             | { ok: false; error: string }
         ) => {
+          if (err || !res) {
+            resolve({
+              ok: false,
+              error: 'Server did not respond. Please check your connection and try again.',
+            });
+            return;
+          }
+          if (res.ok) {
+            this.activeRoomCode = res.room.code;
+            this.activeNickname = nickname;
+            resolve({
+              ok: true,
+              room: res.room,
+              snapshot: res.snapshot ?? null,
+              matchResult: res.matchResult ?? null,
+            });
+            return;
+          }
           resolve(res);
         }
       );
@@ -188,6 +344,7 @@ export class NetworkClient {
   }
 
   leaveRoom(): void {
+    this.clearActiveRoom();
     this.socket?.emit('room:leave');
   }
 
@@ -213,11 +370,13 @@ export class NetworkClient {
   }
 
   sendInput(input: PlayerInputState): void {
-    this.socket?.emit('player:input', input);
+    if (!this.socket?.connected) return;
+    this.socket.emit('player:input', input);
   }
 
   sendShoot(aimAngle: number): void {
-    this.socket?.emit('player:shoot', { aimAngle });
+    if (!this.socket?.connected) return;
+    this.socket.emit('player:shoot', { aimAngle });
   }
 
   measurePing(cb: (ms: number) => void): void {

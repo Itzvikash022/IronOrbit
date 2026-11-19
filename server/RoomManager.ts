@@ -66,6 +66,9 @@ export class RoomManager {
     const res = room.joinPlayer(playerId, socketId, nickname);
     if (!res.ok) return res;
 
+    if (res.previousSocketId && res.previousSocketId !== socketId) {
+      this.socketRoomMap.delete(res.previousSocketId);
+    }
     this.socketRoomMap.set(socketId, { code, playerId });
     return { ok: true, room, reconnected: res.reconnected };
   }
@@ -94,6 +97,7 @@ export class RoomManager {
   disconnectSocket(socketId: string): void {
     const mapping = this.socketRoomMap.get(socketId);
     if (!mapping) return;
+    this.socketRoomMap.delete(socketId);
     const room = this.rooms.get(mapping.code);
     if (room) {
       room.handleDisconnect(socketId);

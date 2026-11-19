@@ -4,7 +4,10 @@ import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, Socket } from 'socket.io-client';
 import { attachSocketServer } from './SocketServer';
-import { MatchSnapshot, RoomInfo } from '../src/shared/types';
+import { PowerUpManager } from './PowerUpManager';
+import { DEFAULT_GAME_SETTINGS } from '../src/shared/config';
+import { ARENA_MAPS } from '../src/shared/maps';
+import { MatchResult, MatchSnapshot, RoomInfo, SupplyCrateEntity } from '../src/shared/types';
 
 function connectClient(url: string): Promise<Socket> {
   return new Promise((resolve, reject) => {
@@ -116,6 +119,236 @@ test('multiplayer room creation, duplicate-nickname guard, isolation, CTF teams,
     c1.disconnect();
     c2.disconnect();
     c3.disconnect();
+    roomManager.destroy();
+    io.close();
+    httpServer.close();
+  }
+});
+
+test('seamless reconnect on new socket restores active tank, ignores stale socket disconnect, and syncs live match state', async () => {
+  const httpServer = http.createServer();
+  const io = new SocketIOServer(httpServer, { cors: { origin: '*' } });
+  const roomManager = attachSocketServer(io);
+
+  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  const address = httpServer.address();
+  assert.ok(address && typeof address !== 'string');
+  const url = `http://127.0.0.1:${address.port}`;
+
+  const host = await connectClient(url);
+  const guestOld = await connectClient(url);
+  let guestNew: Socket | null = null;
+
+  try {
+    const createRes = await new Promise<{ ok: boolean; room: RoomInfo }>((resolve) => {
+      host.emit('room:create', { playerId: 'host1', nickname: 'HostOne' }, resolve);
+    });
+    assert.equal(createRes.ok, true);
+    const code = createRes.room.code;
+
+    const joinRes = await new Promise<{ ok: boolean; room: RoomInfo }>((resolve) => {
+      guestOld.emit('room:join', { code, playerId: 'guest1', nickname: 'GuestOne' }, resolve);
+    });
+    assert.equal(joinRes.ok, true);
+
+    // Guest drops connection in lobby before match starts
+    const tempDiscPromise = new Promise<{ playerId: string; temporary: boolean }>((resolve) => {
+      host.once('player:disconnected', resolve);
+    });
+    guestOld.disconnect();
+    const discEvent = await tempDiscPromise;
+    assert.equal(discEvent.playerId, 'guest1');
+    assert.equal(discEvent.temporary, true);
+
+    // Host starts the match while guest is temporarily disconnected
+    const startedPromise = new Promise<{ room: RoomInfo; snapshot: MatchSnapshot }>((resolve) => {
+      host.once('match:started', resolve);
+    });
+    host.emit('match:start', { randomizeMap: false });
+    await startedPromise;
+
+    // Guest reconnects on a brand-new socket with the same playerId
+    guestNew = await connectClient(url);
+    const reconnectedNotice = new Promise<{ playerId: string; nickname: string }>((resolve) => {
+      host.once('player:reconnected', resolve);
+    });
+    const rejoinRes = await new Promise<{
+      ok: boolean;
+      reconnected: boolean;
+      room: RoomInfo;
+      snapshot: MatchSnapshot | null;
+    }>((resolve) => {
+      guestNew!.emit('room:join', { code, playerId: 'guest1', nickname: 'GuestOne' }, resolve);
+    });
+
+    assert.equal(rejoinRes.ok, true);
+    assert.equal(rejoinRes.reconnected, true);
+    assert.equal(rejoinRes.room.status, 'playing');
+    assert.ok(rejoinRes.snapshot, 'rejoin during active match must return live snapshot');
+    const guestTank = rejoinRes.snapshot!.tanks.find((t) => t.id === 'guest1')!;
+    assert.ok(guestTank, 'guest tank should be present in live snapshot');
+    assert.equal(guestTank.connected, true);
+
+    const reconnEv = await reconnectedNotice;
+    assert.equal(reconnEv.playerId, 'guest1');
+
+    // Verify room:sync returns authoritative room & snapshot
+    const syncRes = await new Promise<{
+      ok: boolean;
+      room: RoomInfo;
+      snapshot: MatchSnapshot | null;
+    }>((resolve) => {
+      guestNew!.emit('room:sync', resolve);
+    });
+    assert.equal(syncRes.ok, true);
+    assert.equal(syncRes.room.status, 'playing');
+    assert.ok(syncRes.snapshot, 'room:sync must include current match snapshot');
+
+    // Verify reconnected guest can immediately send input & fire
+    guestNew.emit('player:shoot', { aimAngle: 0 });
+    const postShotSnap = await new Promise<MatchSnapshot>((resolve) => {
+      const handler = (snap: MatchSnapshot) => {
+        const gt = snap.tanks.find((t) => t.id === 'guest1');
+        if (gt && gt.ammo < 6) {
+          guestNew!.off('match:snapshot', handler);
+          resolve(snap);
+        }
+      };
+      guestNew!.on('match:snapshot', handler);
+    });
+    assert.equal(postShotSnap.tanks.find((t) => t.id === 'guest1')!.ammo, 5);
+  } finally {
+    host.disconnect();
+    guestOld.disconnect();
+    guestNew?.disconnect();
+    roomManager.destroy();
+    io.close();
+    httpServer.close();
+  }
+});
+
+test('PowerUpManager caps active boosts at 3 and waits full interval before replacing a taken crate', () => {
+  const manager = new PowerUpManager();
+  const map = ARENA_MAPS.industrial;
+  const crates: SupplyCrateEntity[] = [];
+  const settings = { ...DEFAULT_GAME_SETTINGS, crateSpawnIntervalMs: 5000, crateDespawnMs: 60000, maxActiveCrates: 3 };
+  let now = 1000;
+  manager.reset(now);
+
+  // Advance 4 intervals -> must cap at 3 crates
+  for (let i = 1; i <= 5; i++) {
+    now += 5000;
+    manager.tick(crates, [], map, settings, now, {
+      onCrateSpawned: () => {},
+      onCrateCollected: () => {},
+    });
+  }
+  assert.equal(crates.length, 3);
+
+  // Remove 1 crate (taken by player), then tick 100ms later -> must NOT spawn instantly
+  crates.pop();
+  assert.equal(crates.length, 2);
+  now += 100;
+  manager.tick(crates, [], map, settings, now, {
+    onCrateSpawned: () => {},
+    onCrateCollected: () => {},
+  });
+  assert.equal(crates.length, 2);
+
+  // Advance full interval -> replacement spawns back up to 3
+  now += 5000;
+  manager.tick(crates, [], map, settings, now, {
+    onCrateSpawned: () => {},
+    onCrateCollected: () => {},
+  });
+  assert.equal(crates.length, 3);
+});
+
+test('zero-ammo shoot click flips rotationDir after settle and DM/CTF milestones end match immediately', async () => {
+  const httpServer = http.createServer();
+  const io = new SocketIOServer(httpServer, { cors: { origin: '*' } });
+  const roomManager = attachSocketServer(io);
+
+  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  const address = httpServer.address();
+  assert.ok(address && typeof address !== 'string');
+  const url = `http://127.0.0.1:${address.port}`;
+
+  const p1 = await connectClient(url);
+  const p2 = await connectClient(url);
+
+  try {
+    // Create room with killTarget = 3 and maxAmmo = 3, and shoot with 0 ammo
+    const createRes = await new Promise<{ ok: boolean; room: RoomInfo }>((resolve) => {
+      p1.emit(
+        'room:create',
+        {
+          playerId: 'm1',
+          nickname: 'Marksman',
+          settings: { maxAmmo: 3, ammoRegenTimeMs: 4000, dmWinMode: 'milestone', killTarget: 3 },
+        },
+        resolve
+      );
+    });
+    assert.equal(createRes.ok, true);
+    const code = createRes.room.code;
+
+    await new Promise((resolve) => {
+      p2.emit('room:join', { code, playerId: 'm2', nickname: 'TargetDummy' }, resolve);
+    });
+
+    const startPromise = new Promise<{ room: RoomInfo; snapshot: MatchSnapshot }>((resolve) => {
+      p1.once('match:started', resolve);
+    });
+    p1.emit('match:start', { randomizeMap: false });
+    const started = await startPromise;
+    assert.equal(started.snapshot.tanks.find((t) => t.id === 'm1')!.rotationDir, 1);
+
+    // Exhaust all 3 shells (3 clicks = odd) -> wait for settle -> direction flips to -1
+    for (let i = 0; i < 3; i++) {
+      p1.emit('player:shoot', { aimAngle: 0 });
+      await new Promise((r) => setTimeout(r, 310));
+    }
+
+    const emptySnap = await new Promise<MatchSnapshot>((resolve) => {
+      const handler = (snap: MatchSnapshot) => {
+        const t = snap.tanks.find((x) => x.id === 'm1')!;
+        if (t.ammo === 0 && t.rotationDir === -1) {
+          p1.off('match:snapshot', handler);
+          resolve(snap);
+        }
+      };
+      p1.on('match:snapshot', handler);
+    });
+    assert.equal(emptySnap.tanks.find((t) => t.id === 'm1')!.rotationDir, -1);
+
+    // Click once MORE while at 0 ammo -> direction still flips back to +1 after settle!
+    p1.emit('player:shoot', { aimAngle: 0 });
+    const flippedEmptySnap = await new Promise<MatchSnapshot>((resolve) => {
+      const handler = (snap: MatchSnapshot) => {
+        const t = snap.tanks.find((x) => x.id === 'm1')!;
+        if (t.rotationDir === 1) {
+          p1.off('match:snapshot', handler);
+          resolve(snap);
+        }
+      };
+      p1.on('match:snapshot', handler);
+    });
+    assert.equal(flippedEmptySnap.tanks.find((t) => t.id === 'm1')!.rotationDir, 1);
+
+    // Force milestone condition on room directly via tank kills to verify instant match:ended
+    const ctx = roomManager.getRoomBySocket(p1.id!)!;
+    const endedPromise = new Promise<MatchResult>((resolve) => {
+      p1.once('match:ended', resolve);
+    });
+    const snapInternal = ctx.room.getCurrentSnapshot()!;
+    snapInternal.tanks.find((t) => t.id === 'm1')!.kills = 3;
+    const ended = await endedPromise;
+    assert.equal(ended.endReason, 'milestone');
+    assert.equal(ended.winnerId, 'm1');
+  } finally {
+    p1.disconnect();
+    p2.disconnect();
     roomManager.destroy();
     io.close();
     httpServer.close();

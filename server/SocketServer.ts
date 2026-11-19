@@ -56,15 +56,36 @@ export function attachSocketServer(io: Server): RoomManager {
           return;
         }
         socket.join(res.room.code);
+        const snapshot = res.room.getCurrentSnapshot();
         ack?.({
           ok: true,
           room: res.room.getRoomInfo(),
-          snapshot: res.room.getCurrentSnapshot(),
+          snapshot,
+          matchResult: res.room.getLastMatchResult(),
           playerId,
           reconnected: res.reconnected,
         });
+        if (snapshot) {
+          socket.emit('match:snapshot', snapshot);
+        }
       }
     );
+
+    socket.on('room:sync', (ack?: (res: unknown) => void) => {
+      const ctx = roomManager.getRoomBySocket(socket.id);
+      if (!ctx) {
+        ack?.({ ok: false, error: 'Not currently in an active room.' });
+        return;
+      }
+      socket.join(ctx.room.code);
+      const snapshot = ctx.room.getCurrentSnapshot();
+      ack?.({
+        ok: true,
+        room: ctx.room.getRoomInfo(),
+        snapshot,
+        matchResult: ctx.room.getLastMatchResult(),
+      });
+    });
 
     socket.on('room:leave', () => {
       const ctx = roomManager.getRoomBySocket(socket.id);

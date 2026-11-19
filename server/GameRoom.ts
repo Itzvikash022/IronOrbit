@@ -2,11 +2,22 @@ import { Server } from 'socket.io';
 import {
   DEFAULT_GAME_SETTINGS,
   RECONNECT_GRACE_MS,
+  sanitizeGameSettings,
   TANK_SKINS,
 } from '../src/shared/config.ts';
 import { ARENA_MAPS, getRandomMapId } from '../src/shared/maps.ts';
-import { selectSafeSpawn, stepTankMotion } from '../src/shared/physics.ts';
-import { buildLeaderboard, tickAmmoRegen } from '../src/shared/rules.ts';
+import {
+  registerFireClick,
+  RotationFlipState,
+  selectSafeSpawn,
+  stepRotationFlip,
+  stepTankMotion,
+} from '../src/shared/physics.ts';
+import {
+  buildLeaderboard,
+  checkMilestoneReached,
+  tickAmmoRegen,
+} from '../src/shared/rules.ts';
 import type {
   FlagBannerEvent,
   FlagEntity,
@@ -15,6 +26,7 @@ import type {
   KillFeedEvent,
   LobbyPlayer,
   MapId,
+  MatchResult,
   MatchSnapshot,
   PlayerInputState,
   ProjectileEntity,
@@ -39,6 +51,7 @@ interface PlayerSession {
   disconnectedAt: number;
   input: PlayerInputState;
   pendingShots: number;
+  flipState: RotationFlipState;
 }
 
 export class GameRoom {
@@ -67,6 +80,7 @@ export class GameRoom {
   private lastTickTime = 0;
   private tickTimer: NodeJS.Timeout | null = null;
   private killCounter = 0;
+  private lastMatchResult: MatchResult | null = null;
   private onEmptyCallback: (code: string) => void;
 
   constructor(
@@ -82,7 +96,7 @@ export class GameRoom {
     this.io = io;
     this.hostId = hostPlayerId;
     this.mapId = getRandomMapId();
-    this.settings = { ...DEFAULT_GAME_SETTINGS, ...initialSettings };
+    this.settings = sanitizeGameSettings(initialSettings, DEFAULT_GAME_SETTINGS);
     this.modeHandler = createGameModeHandler(this.mode);
     this.onEmptyCallback = onEmpty;
 
@@ -110,13 +124,22 @@ export class GameRoom {
     playerId: string,
     socketId: string,
     nickname: string
-  ): { ok: true; reconnected: boolean } | { ok: false; error: string } {
+  ):
+    | { ok: true; reconnected: boolean; previousSocketId?: string }
+    | { ok: false; error: string } {
     const existing = this.sessions.get(playerId);
     if (existing) {
-      this.socketToPlayer.delete(existing.socketId);
+      const previousSocketId = existing.socketId;
+      const wasDisconnected = !existing.connected;
+      if (previousSocketId && previousSocketId !== socketId) {
+        this.socketToPlayer.delete(previousSocketId);
+      }
       existing.socketId = socketId;
       existing.connected = true;
       existing.disconnectedAt = 0;
+      existing.input.thrust = false;
+      existing.pendingShots = 0;
+      existing.flipState = { pendingClicks: 0, lastClickAt: 0 };
       if (nickname.trim()) {
         const clean = nickname.trim().slice(0, 18);
         if (!this.hasNickname(clean, playerId)) {
@@ -125,14 +148,26 @@ export class GameRoom {
       }
       this.socketToPlayer.set(socketId, playerId);
 
-      const tank = this.tanks.find((t) => t.id === playerId);
-      if (tank) {
-        tank.connected = true;
-        tank.nickname = existing.nickname;
+      if (this.status === 'playing') {
+        let tank = this.tanks.find((t) => t.id === playerId);
+        if (!tank) {
+          tank = this.createTankForSession(existing, Date.now());
+          this.tanks.push(tank);
+        } else {
+          tank.connected = true;
+          tank.nickname = existing.nickname;
+        }
+      }
+
+      if (wasDisconnected) {
+        this.io.to(this.code).emit('player:reconnected', {
+          playerId,
+          nickname: existing.nickname,
+        });
       }
 
       this.broadcastRoomInfo();
-      return { ok: true, reconnected: true };
+      return { ok: true, reconnected: true, previousSocketId };
     }
 
     if (this.sessions.size >= this.settings.maxPlayersPerRoom) {
@@ -190,6 +225,7 @@ export class GameRoom {
       disconnectedAt: 0,
       input: { seq: 0, thrust: false, aimAngle: 0 },
       pendingShots: 0,
+      flipState: { pendingClicks: 0, lastClickAt: 0 },
     };
     this.sessions.set(playerId, session);
     this.socketToPlayer.set(socketId, playerId);
@@ -199,12 +235,15 @@ export class GameRoom {
   handleDisconnect(socketId: string): void {
     const playerId = this.socketToPlayer.get(socketId);
     if (!playerId) return;
+    this.socketToPlayer.delete(socketId);
     const session = this.sessions.get(playerId);
-    if (!session) return;
+    if (!session || session.socketId !== socketId) return;
 
     session.connected = false;
     session.disconnectedAt = Date.now();
     session.input.thrust = false;
+    session.pendingShots = 0;
+    session.flipState = { pendingClicks: 0, lastClickAt: 0 };
 
     const tank = this.tanks.find((t) => t.id === playerId);
     if (tank) {
@@ -313,10 +352,7 @@ export class GameRoom {
     }
 
     if (payload.settings) {
-      this.settings = {
-        ...this.settings,
-        ...payload.settings,
-      };
+      this.settings = sanitizeGameSettings(payload.settings, this.settings);
     }
 
     this.broadcastRoomInfo();
@@ -339,6 +375,7 @@ export class GameRoom {
     const nowMs = Date.now();
     const map = ARENA_MAPS[this.mapId];
     this.status = 'playing';
+    this.lastMatchResult = null;
     this.matchStartTime = nowMs;
     this.lastTickTime = nowMs;
     this.projectiles = [];
@@ -386,6 +423,7 @@ export class GameRoom {
     this.tanks = [];
     for (const session of this.sessions.values()) {
       session.pendingShots = 0;
+      session.flipState = { pendingClicks: 0, lastClickAt: 0 };
       this.tanks.push(this.createTankForSession(session, nowMs));
     }
 
@@ -402,6 +440,7 @@ export class GameRoom {
     if (requesterId !== this.hostId) return;
     this.stopLoop();
     this.status = 'lobby';
+    this.lastMatchResult = null;
     this.projectiles = [];
     this.crates = [];
     this.tanks = [];
@@ -430,6 +469,11 @@ export class GameRoom {
     if (!playerId) return;
     const session = this.sessions.get(playerId);
     if (!session) return;
+    const tank = this.tanks.find((t) => t.id === playerId);
+    if (tank?.alive) {
+      // Count every fire click for spin direction flip even if out of ammo or on cooldown
+      registerFireClick(session.flipState, Date.now());
+    }
     if (session.pendingShots < 3) {
       session.pendingShots += 1;
     }
@@ -459,6 +503,10 @@ export class GameRoom {
   getCurrentSnapshot(): MatchSnapshot | null {
     if (this.status !== 'playing') return null;
     return this.buildSnapshot(Date.now());
+  }
+
+  getLastMatchResult(): MatchResult | null {
+    return this.status === 'ended' ? this.lastMatchResult : null;
   }
 
   private broadcastRoomInfo(): void {
@@ -493,6 +541,7 @@ export class GameRoom {
       vy: 0,
       angle: spawnAngle,
       aimAngle: spawnAngle,
+      rotationDir: 1,
       hp: 100,
       maxHp: 100,
       ammo: this.settings.maxAmmo,
@@ -606,6 +655,7 @@ export class GameRoom {
       if (!session || !session.connected) continue;
 
       tank.lastProcessedSeq = session.input.seq;
+      stepRotationFlip(tank, session.flipState, nowMs, this.settings);
       stepTankMotion(tank, session.input.thrust, dt, map, this.settings, nowMs);
       tank.aimAngle = tank.angle;
 
@@ -675,11 +725,17 @@ export class GameRoom {
       nowMs
     );
 
-    // 6. Check match timer expiry
+    // 6. Check milestone instant-win condition and match timer expiry
     const elapsedSec = (nowMs - this.matchStartTime) / 1000;
+    if (checkMilestoneReached(this.mode, this.settings, this.tanks, this.teamScores)) {
+      this.io.to(this.code).emit('match:snapshot', this.buildSnapshot(nowMs));
+      this.endMatch(Math.max(1, Math.round(elapsedSec)), 'milestone');
+      return;
+    }
+
     const remainingSec = Math.max(0, Math.ceil(this.settings.matchDurationSec - elapsedSec));
     if (remainingSec <= 0) {
-      this.endMatch(Math.round(elapsedSec));
+      this.endMatch(Math.round(elapsedSec), 'timer');
       return;
     }
 
@@ -707,20 +763,26 @@ export class GameRoom {
       crates: this.crates,
       flags: this.flags,
       teamScores: { ...this.teamScores },
+      dmWinMode: this.settings.dmWinMode,
+      killTarget: this.settings.killTarget,
+      ctfWinMode: this.settings.ctfWinMode,
+      flagTarget: this.settings.flagTarget,
       leaderboard: buildLeaderboard(this.tanks),
     };
   }
 
-  private endMatch(durationSec: number): void {
+  private endMatch(durationSec: number, endReason: 'milestone' | 'timer'): void {
     this.stopLoop();
     this.status = 'ended';
     const map = ARENA_MAPS[this.mapId];
     const result = this.modeHandler.buildMatchResult(
       map,
       durationSec,
+      endReason,
       this.tanks,
       this.teamScores
     );
+    this.lastMatchResult = result;
     this.broadcastRoomInfo();
     this.io.to(this.code).emit('match:ended', result);
   }

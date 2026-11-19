@@ -48,6 +48,8 @@ export default function App() {
   const [killFeed, setKillFeed] = useState<KillFeedEvent[]>([]);
   const [flagBanner, setFlagBanner] = useState<FlagBannerEvent | null>(null);
   const [disconnectNotice, setDisconnectNotice] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [pingMs, setPingMs] = useState<number | null>(null);
 
   const [preferences, setPreferences] = useState<ClientPreferences>({
     soundVolume: 0.65,
@@ -86,6 +88,50 @@ export default function App() {
     }, 4500);
   }, []);
 
+  const syncToRoomState = useCallback(
+    (
+      nextRoom: RoomInfo,
+      nextSnapshot: MatchSnapshot | null,
+      nextMatchResult: MatchResult | null
+    ) => {
+      setRoom(nextRoom);
+      sceneRef.current?.updateSettings(nextRoom.settings);
+
+      if (nextRoom.status === 'playing' && nextSnapshot) {
+        lastHudSnapRef.current = nextSnapshot;
+        lastHudSyncAtRef.current = performance.now();
+        setSnapshot(nextSnapshot);
+        setMatchResult(null);
+
+        const wasPlaying =
+          shellStateRef.current === 'playing' || shellStateRef.current === 'paused';
+        if (!wasPlaying) {
+          setShellState('playing');
+          sceneRef.current?.startActiveMatch(
+            nextRoom.mapId,
+            nextRoom.mode,
+            networkClient.playerId,
+            nextRoom.settings,
+            nextSnapshot
+          );
+        } else {
+          sceneRef.current?.resyncSnapshot(nextSnapshot);
+        }
+      } else if (nextRoom.status === 'ended' && nextMatchResult) {
+        setMatchResult(nextMatchResult);
+        setSnapshot(null);
+        setShellState('gameover');
+      } else {
+        setSnapshot(null);
+        setMatchResult(null);
+        setShowLeaderboard(false);
+        setShellState('lobby');
+        sceneRef.current?.enterAttractMode(nextRoom.mapId);
+      }
+    },
+    []
+  );
+
   // Mount Phaser once + attach Socket.IO listeners
   useEffect(() => {
     if (!phaserMountRef.current || phaserGameRef.current) return;
@@ -113,6 +159,34 @@ export default function App() {
     phaserGameRef.current = game;
 
     networkClient.setListeners({
+      onConnectChange: (connected) => {
+        if (!connected) {
+          setPingMs(null);
+          if (networkClient.hasActiveRoom()) {
+            setReconnecting(true);
+          }
+        } else {
+          networkClient.measurePing((ms) => setPingMs(ms));
+          if (!networkClient.hasActiveRoom()) {
+            setReconnecting(false);
+          }
+        }
+      },
+      onRejoinedRoom: ({ room: syncedRoom, snapshot: syncedSnap, matchResult: syncedResult }) => {
+        setReconnecting(false);
+        syncToRoomState(syncedRoom, syncedSnap, syncedResult);
+      },
+      onSessionExpired: (reason) => {
+        setReconnecting(false);
+        setRoom(null);
+        setSnapshot(null);
+        setMatchResult(null);
+        setShowSettings(false);
+        setShowLeaderboard(false);
+        setShellState('title');
+        setError(`Session ended: ${reason}`);
+        sceneRef.current?.enterAttractMode('industrial');
+      },
       onRoomUpdated: (updatedRoom) => {
         setRoom(updatedRoom);
         sceneRef.current?.updateSettings(updatedRoom.settings);
@@ -234,9 +308,23 @@ export default function App() {
           );
         }
       },
+      onPlayerReconnected: ({ nickname: backName }) => {
+        showTempDisconnect(`${backName} reconnected.`);
+      },
     });
 
     networkClient.connect();
+
+    const handleResumeSync = () => {
+      if (document.visibilityState === 'visible') {
+        void networkClient.syncCurrentRoom();
+      }
+    };
+    const handleOnline = () => {
+      void networkClient.syncCurrentRoom();
+    };
+    document.addEventListener('visibilitychange', handleResumeSync);
+    window.addEventListener('online', handleOnline);
 
     // Support ?autostart=1 for immediate testing/play
     const params = new URLSearchParams(window.location.search);
@@ -250,12 +338,19 @@ export default function App() {
       })();
     }
 
+    const pingTimer = window.setInterval(() => {
+      networkClient.measurePing((ms) => setPingMs(ms));
+    }, 2000);
+
     return () => {
+      window.clearInterval(pingTimer);
+      document.removeEventListener('visibilitychange', handleResumeSync);
+      window.removeEventListener('online', handleOnline);
       phaserGameRef.current?.destroy(true);
       phaserGameRef.current = null;
       sceneRef.current = null;
     };
-  }, [showTempDisconnect]);
+  }, [showTempDisconnect, syncToRoomState]);
 
   // Global keyboard shortcuts (Tab leaderboard, M mute, Esc/P pause)
   useEffect(() => {
@@ -326,25 +421,13 @@ export default function App() {
       setError(res.error);
       return;
     }
-    setRoom(res.room);
-    if (res.room.status === 'playing' && res.snapshot) {
-      setSnapshot(res.snapshot);
-      setShellState('playing');
-      sceneRef.current?.startActiveMatch(
-        res.room.mapId,
-        res.room.mode,
-        networkClient.playerId,
-        res.room.settings,
-        res.snapshot
-      );
-    } else {
-      setShellState('lobby');
-      sceneRef.current?.enterAttractMode(res.room.mapId);
-    }
+    setReconnecting(false);
+    syncToRoomState(res.room, res.snapshot, res.matchResult);
   };
 
   const handleLeaveRoom = () => {
     networkClient.leaveRoom();
+    setReconnecting(false);
     setRoom(null);
     setSnapshot(null);
     setMatchResult(null);
@@ -389,6 +472,13 @@ export default function App() {
     }
   };
 
+  const handlePatchRoomSettings = (patch: Partial<GameSettings>) => {
+    setCustomSettings((prev) => ({ ...prev, ...patch }));
+    if (room && room.hostId === networkClient.playerId && room.status === 'lobby') {
+      networkClient.updateRoomConfig({ settings: patch });
+    }
+  };
+
   const isHost = Boolean(room && room.hostId === networkClient.playerId);
   const canEditMatchRules =
     shellState === 'title' || (shellState === 'lobby' && isHost);
@@ -418,14 +508,20 @@ export default function App() {
         <RoomLobby
           room={room}
           localPlayerId={networkClient.playerId}
+          pingMs={pingMs}
           onStartMatch={handleStartMatch}
           onLeaveRoom={handleLeaveRoom}
           onChangeMode={handleChangeMode}
           onChangeMap={handleChangeMap}
           onRerollMap={handleRerollMap}
           onSwitchTeam={handleSwitchTeam}
+          onPatchSettings={handlePatchRoomSettings}
           onOpenSettings={() => setShowSettings(true)}
-          disconnectNotice={disconnectNotice}
+          disconnectNotice={
+            reconnecting
+              ? 'Connection interrupted — reconnecting to lobby...'
+              : disconnectNotice
+          }
         />
       )}
 
@@ -434,11 +530,16 @@ export default function App() {
           snapshot={snapshot}
           localPlayerId={networkClient.playerId}
           roomCode={room.code}
+          pingMs={pingMs}
           muted={preferences.muted}
           showLeaderboard={showLeaderboard && shellState === 'playing'}
           killFeed={killFeed}
           flagBanner={flagBanner}
-          disconnectNotice={disconnectNotice}
+          disconnectNotice={
+            reconnecting
+              ? 'Connection interrupted — reconnecting to match...'
+              : disconnectNotice
+          }
           onToggleMute={() =>
             setPreferences((prev) => ({ ...prev, muted: !prev.muted }))
           }

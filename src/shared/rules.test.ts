@@ -7,6 +7,7 @@ import {
   assignBalancedTeam,
   buildLeaderboard,
   canTankFire,
+  checkMilestoneReached,
   consumeAmmo,
   evaluateFlagInteraction,
   pruneExpiredPowerUps,
@@ -26,6 +27,7 @@ function makeTank(overrides: Partial<TankEntity> = {}): TankEntity {
     vy: 0,
     angle: 0,
     aimAngle: 0,
+    rotationDir: 1,
     hp: 100,
     maxHp: 100,
     ammo: 6,
@@ -166,4 +168,19 @@ test('leaderboard sorts by score primary then kills secondary and team assignmen
 
   assert.equal(assignBalancedTeam([{ team: 'red' }, { team: 'red' }, { team: 'blue' }]), 'blue');
   assert.equal(assignBalancedTeam([{ team: 'red' }, { team: 'blue' }]), 'red');
+});
+
+test('milestone win conditions trigger at configured kill/flag targets and stay off in timed mode', () => {
+  const dmMilestone = { ...DEFAULT_GAME_SETTINGS, dmWinMode: 'milestone' as const, killTarget: 10, ctfWinMode: 'milestone' as const, flagTarget: 3 };
+  assert.equal(checkMilestoneReached('deathmatch', dmMilestone, [{ kills: 9 }, { kills: 4 }], { red: 0, blue: 0 }), false);
+  assert.equal(checkMilestoneReached('deathmatch', dmMilestone, [{ kills: 10 }, { kills: 4 }], { red: 0, blue: 0 }), true);
+
+  const dmTimed = { ...dmMilestone, dmWinMode: 'timed' as const };
+  assert.equal(checkMilestoneReached('deathmatch', dmTimed, [{ kills: 25 }], { red: 0, blue: 0 }), false);
+
+  assert.equal(checkMilestoneReached('ctf', dmMilestone, [], { red: 2, blue: 2 }), false);
+  assert.equal(checkMilestoneReached('ctf', dmMilestone, [], { red: 2, blue: 3 }), true);
+
+  const ctfTimed = { ...dmMilestone, ctfWinMode: 'timed' as const };
+  assert.equal(checkMilestoneReached('ctf', ctfTimed, [], { red: 5, blue: 0 }), false);
 });

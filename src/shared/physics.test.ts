@@ -4,9 +4,13 @@ import { ARENA_MAPS, MAP_IDS } from './maps';
 import { CRATE_RADIUS, DEFAULT_GAME_SETTINGS, TANK_RADIUS } from './config';
 import {
   circleIntersectsRect,
+  computeArenaCameraZoom,
   findValidCratePosition,
+  registerFireClick,
+  RotationFlipState,
   selectSafeSpawn,
   stepProjectile,
+  stepRotationFlip,
   stepTankMotion,
 } from './physics';
 import { ProjectileEntity, TankEntity } from './types';
@@ -23,6 +27,7 @@ function makeTank(overrides: Partial<TankEntity> = {}): TankEntity {
     vy: 0,
     angle: 0,
     aimAngle: 0,
+    rotationDir: 1,
     hp: 100,
     maxHp: 100,
     ammo: 6,
@@ -164,4 +169,55 @@ test('selectSafeSpawn picks spawn farthest from living enemy and crate placement
   for (const obs of map.obstacles) {
     assert.equal(circleIntersectsRect(cratePos.x, cratePos.y, CRATE_RADIUS, obs), false);
   }
+});
+
+test('computeArenaCameraZoom targets ~75% visible arena area on desktop without showing out-of-bounds void', () => {
+  const z1440 = computeArenaCameraZoom(1440, 900, 1800, 1200);
+  const visibleAreaRatio1440 = ((1440 / z1440) * (900 / z1440)) / (1800 * 1200);
+  assert.ok(Math.abs(visibleAreaRatio1440 - 0.75) < 0.02, `expected ~0.75, got ${visibleAreaRatio1440}`);
+
+  const z1280 = computeArenaCameraZoom(1280, 720, 1800, 1200);
+  const visibleAreaRatio1280 = ((1280 / z1280) * (720 / z1280)) / (1800 * 1200);
+  assert.ok(Math.abs(visibleAreaRatio1280 - 0.75) < 0.02, `expected ~0.75, got ${visibleAreaRatio1280}`);
+});
+
+test('click-to-flip rotation waits for shooting to stop, respects click parity on spam, and applies when rotation resumes', () => {
+  const map = ARENA_MAPS.desert;
+  const tank = makeTank({ x: 900, y: 300, angle: 0, rotationDir: 1 });
+  const flipState: RotationFlipState = { pendingClicks: 0, lastClickAt: 0 };
+
+  // 1. Single click -> does NOT flip instantly mid-shot, flips after fireCooldownMs settles
+  registerFireClick(flipState, 1000);
+  assert.equal(stepRotationFlip(tank, flipState, 1100, DEFAULT_GAME_SETTINGS), false);
+  assert.equal(tank.rotationDir, 1);
+
+  assert.equal(stepRotationFlip(tank, flipState, 1300, DEFAULT_GAME_SETTINGS), true);
+  assert.equal(tank.rotationDir, -1);
+
+  // Tank now rotates anti-clockwise (angle decreases)
+  const angleBefore = tank.angle;
+  stepTankMotion(tank, false, 0.2, map, DEFAULT_GAME_SETTINGS, 1500);
+  assert.ok(tank.angle < angleBefore, 'tank should rotate counter-clockwise when rotationDir is -1');
+
+  // 2. Spam 2 rapid clicks -> waits until last click + settle, net even count keeps direction (-1)
+  registerFireClick(flipState, 2000);
+  registerFireClick(flipState, 2080);
+  assert.equal(stepRotationFlip(tank, flipState, 2290, DEFAULT_GAME_SETTINGS), false);
+  assert.equal(stepRotationFlip(tank, flipState, 2400, DEFAULT_GAME_SETTINGS), false);
+  assert.equal(tank.rotationDir, -1);
+  assert.equal(flipState.pendingClicks, 0);
+
+  // 3. Spam 3 clicks while holding Spacebar thrust -> heading stays locked while thrusting,
+  // and once released it rotates clockwise (+1)
+  registerFireClick(flipState, 3000);
+  registerFireClick(flipState, 3060);
+  registerFireClick(flipState, 3120);
+  const lockedHeading = tank.angle;
+  stepTankMotion(tank, true, 0.1, map, DEFAULT_GAME_SETTINGS, 3200);
+  assert.equal(tank.angle, lockedHeading);
+  assert.equal(stepRotationFlip(tank, flipState, 3420, DEFAULT_GAME_SETTINGS), true);
+  assert.equal(tank.rotationDir, 1);
+
+  stepTankMotion(tank, false, 0.2, map, DEFAULT_GAME_SETTINGS, 3620);
+  assert.ok(tank.angle > lockedHeading, 'tank should resume rotating clockwise (+1) after release');
 });

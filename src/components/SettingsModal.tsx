@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, RotateCcw } from 'lucide-react';
-import { DEFAULT_GAME_SETTINGS } from '../shared/config';
+import { DEFAULT_GAME_SETTINGS, sanitizeGameSettings } from '../shared/config';
 import { ClientPreferences, GameSettings } from '../shared/types';
 
 interface SettingsModalProps {
@@ -21,13 +21,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
 }) => {
   const [prefs, setPrefs] = useState<ClientPreferences>({ ...preferences });
-  const [rules, setRules] = useState<GameSettings>({ ...gameSettings });
+  const [rules, setRules] = useState<GameSettings>(() =>
+    sanitizeGameSettings(gameSettings, DEFAULT_GAME_SETTINGS)
+  );
 
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
     onSavePreferences(prefs);
     if (canEditMatchRules) {
-      onSaveGameSettings(rules);
+      onSaveGameSettings(sanitizeGameSettings(rules, DEFAULT_GAME_SETTINGS));
     }
     onClose();
   };
@@ -35,6 +37,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleResetDefaults = () => {
     setRules({ ...DEFAULT_GAME_SETTINGS });
   };
+
+  const rotDeg = Math.round((rules.tankRotationSpeed * 180) / Math.PI);
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-[#0b0f14]/85">
@@ -61,9 +65,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleApply} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form noValidate onSubmit={handleApply} className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Client Audio & Graphics */}
-          <section className="space-y-4">
+          <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
               Audio & Graphics
             </h3>
@@ -125,14 +129,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </section>
 
-          {/* Match & Tank Physics Rules */}
-          <section className="space-y-4">
+          {/* Win Milestones & Mode Targets */}
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
-                Arena & Tank Rules
+                Win Milestones
                 {!canEditMatchRules && (
                   <span className="ml-2 text-slate-400 normal-case font-normal">
-                    (Editable by Room Host before match starts)
+                    (Host only before match starts)
                   </span>
                 )}
               </h3>
@@ -149,41 +153,144 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <NumberField
+              <div className="bg-[#0b0f14] border border-slate-800 rounded-lg p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-200">Deathmatch Win Rule</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      disabled={!canEditMatchRules}
+                      onClick={() => setRules({ ...rules, dmWinMode: 'milestone' })}
+                      className={`px-2 py-1 rounded text-[11px] font-semibold cursor-pointer ${
+                        rules.dmWinMode === 'milestone'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/60'
+                          : 'bg-slate-800 text-slate-400'
+                      } disabled:opacity-50`}
+                    >
+                      Kill Target
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canEditMatchRules}
+                      onClick={() => setRules({ ...rules, dmWinMode: 'timed' })}
+                      className={`px-2 py-1 rounded text-[11px] font-semibold cursor-pointer ${
+                        rules.dmWinMode === 'timed'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60'
+                          : 'bg-slate-800 text-slate-400'
+                      } disabled:opacity-50`}
+                    >
+                      Timed
+                    </button>
+                  </div>
+                </div>
+                {rules.dmWinMode === 'milestone' && (
+                  <SliderRow
+                    id="dm-kill-target"
+                    label="Kills to Win"
+                    display={`${rules.killTarget} kills`}
+                    value={rules.killTarget}
+                    min={3}
+                    max={50}
+                    step={1}
+                    disabled={!canEditMatchRules}
+                    onChange={(v) => setRules({ ...rules, killTarget: v })}
+                  />
+                )}
+              </div>
+
+              <div className="bg-[#0b0f14] border border-slate-800 rounded-lg p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-200">Capture Flag Win Rule</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      disabled={!canEditMatchRules}
+                      onClick={() => setRules({ ...rules, ctfWinMode: 'milestone' })}
+                      className={`px-2 py-1 rounded text-[11px] font-semibold cursor-pointer ${
+                        rules.ctfWinMode === 'milestone'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/60'
+                          : 'bg-slate-800 text-slate-400'
+                      } disabled:opacity-50`}
+                    >
+                      Flag Target
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canEditMatchRules}
+                      onClick={() => setRules({ ...rules, ctfWinMode: 'timed' })}
+                      className={`px-2 py-1 rounded text-[11px] font-semibold cursor-pointer ${
+                        rules.ctfWinMode === 'timed'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60'
+                          : 'bg-slate-800 text-slate-400'
+                      } disabled:opacity-50`}
+                    >
+                      Timed
+                    </button>
+                  </div>
+                </div>
+                {rules.ctfWinMode === 'milestone' && (
+                  <SliderRow
+                    id="ctf-flag-target"
+                    label="Captures to Win"
+                    display={`${rules.flagTarget} ${rules.flagTarget === 1 ? 'flag' : 'flags'}`}
+                    value={rules.flagTarget}
+                    min={1}
+                    max={15}
+                    step={1}
+                    disabled={!canEditMatchRules}
+                    onChange={(v) => setRules({ ...rules, flagTarget: v })}
+                  />
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Simplified Arena & Tank Rules */}
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+              Arena &amp; Tank Rules
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <SliderField
                 id="rot-speed"
-                label="Tank Auto-Rotation (°/sec)"
-                value={Math.round((rules.tankRotationSpeed * 180) / Math.PI)}
-                min={45}
-                max={360}
+                label="Auto-Rotation Speed"
+                display={`${rotDeg}°/s`}
+                value={rotDeg}
+                min={60}
+                max={300}
                 step={5}
                 disabled={!canEditMatchRules}
                 onChange={(deg) =>
                   setRules({ ...rules, tankRotationSpeed: (deg * Math.PI) / 180 })
                 }
               />
-              <NumberField
+              <SliderField
                 id="move-speed"
-                label="Tank Move Speed (px/s)"
+                label="Tank Move Speed"
+                display={`${rules.tankMoveSpeed} px/s`}
                 value={rules.tankMoveSpeed}
-                min={140}
-                max={420}
-                step={10}
+                min={150}
+                max={400}
+                step={5}
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, tankMoveSpeed: v })}
               />
-              <NumberField
+              <SliderField
                 id="proj-speed"
-                label="Projectile Speed (px/s)"
+                label="Shell Speed"
+                display={`${rules.projectileSpeed} px/s`}
                 value={rules.projectileSpeed}
-                min={400}
-                max={1200}
+                min={440}
+                max={1100}
                 step={20}
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, projectileSpeed: v })}
               />
-              <NumberField
+              <SliderField
                 id="proj-dmg"
-                label="Projectile Damage (HP)"
+                label="Shell Damage"
+                display={`${rules.projectileDamage} HP`}
                 value={rules.projectileDamage}
                 min={10}
                 max={100}
@@ -191,9 +298,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, projectileDamage: v })}
               />
-              <NumberField
+              <SliderField
                 id="max-ammo"
-                label="Max Ammunition"
+                label="Max Shells"
+                display={`${rules.maxAmmo} shells`}
                 value={rules.maxAmmo}
                 min={3}
                 max={10}
@@ -201,19 +309,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, maxAmmo: v })}
               />
-              <NumberField
+              <SliderField
                 id="ammo-regen"
-                label="Ammo Reload Time (ms)"
+                label="Shell Reload Time"
+                display={`${(rules.ammoRegenTimeMs / 1000).toFixed(2).replace(/\.?0+$/, '')}s`}
                 value={rules.ammoRegenTimeMs}
                 min={500}
-                max={4000}
-                step={100}
+                max={3500}
+                step={50}
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, ammoRegenTimeMs: v })}
               />
-              <NumberField
+              <SliderField
                 id="respawn-delay"
-                label="Respawn Delay (ms)"
+                label="Respawn Delay"
+                display={`${(rules.respawnDelayMs / 1000).toFixed(1)}s`}
                 value={rules.respawnDelayMs}
                 min={1000}
                 max={8000}
@@ -221,9 +331,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, respawnDelayMs: v })}
               />
-              <NumberField
+              <SliderField
                 id="invinc-dur"
-                label="Spawn Shield Duration (ms)"
+                label="Spawn Shield"
+                display={`${(rules.invincibilityDurationMs / 1000).toFixed(1)}s`}
                 value={rules.invincibilityDurationMs}
                 min={1000}
                 max={6000}
@@ -231,9 +342,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, invincibilityDurationMs: v })}
               />
-              <NumberField
+              <SliderField
                 id="powerup-dur"
-                label="Power-Up Duration (ms)"
+                label="Boost Duration"
+                display={`${(rules.powerUpDurationMs / 1000).toFixed(1)}s`}
                 value={rules.powerUpDurationMs}
                 min={3000}
                 max={20000}
@@ -241,19 +353,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, powerUpDurationMs: v })}
               />
-              <NumberField
+              <SliderField
                 id="crate-int"
-                label="Crate Spawn Interval (ms)"
+                label="Boost Respawn Interval"
+                display={`${(rules.crateSpawnIntervalMs / 1000).toFixed(1)}s`}
                 value={rules.crateSpawnIntervalMs}
-                min={2500}
+                min={3000}
                 max={20000}
                 step={500}
                 disabled={!canEditMatchRules}
                 onChange={(v) => setRules({ ...rules, crateSpawnIntervalMs: v })}
               />
-              <NumberField
+              <SliderField
                 id="match-dur"
-                label="Match Duration (minutes)"
+                label="Match Time Limit"
+                display={`${Math.round(rules.matchDurationSec / 60)} min`}
                 value={Math.round(rules.matchDurationSec / 60)}
                 min={1}
                 max={15}
@@ -261,9 +375,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 disabled={!canEditMatchRules}
                 onChange={(mins) => setRules({ ...rules, matchDurationSec: mins * 60 })}
               />
-              <NumberField
+              <SliderField
                 id="max-players"
-                label="Max Players Per Room"
+                label="Max Players"
+                display={`${rules.maxPlayersPerRoom} pilots`}
                 value={rules.maxPlayersPerRoom}
                 min={2}
                 max={16}
@@ -295,9 +410,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   );
 };
 
-interface NumberFieldProps {
+interface SliderFieldProps {
   id: string;
   label: string;
+  display: string;
   value: number;
   min: number;
   max: number;
@@ -306,9 +422,10 @@ interface NumberFieldProps {
   onChange: (val: number) => void;
 }
 
-const NumberField: React.FC<NumberFieldProps> = ({
+const SliderRow: React.FC<SliderFieldProps> = ({
   id,
   label,
+  display,
   value,
   min,
   max,
@@ -316,25 +433,29 @@ const NumberField: React.FC<NumberFieldProps> = ({
   disabled,
   onChange,
 }) => (
-  <div className="bg-[#0b0f14] border border-slate-800 rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
-    <label htmlFor={id} className="text-slate-300 font-medium">
-      {label}
-    </label>
+  <div className="space-y-1">
+    <div className="flex items-center justify-between">
+      <label htmlFor={id} className="text-slate-300 font-medium">
+        {label}
+      </label>
+      <span className="font-mono-num text-amber-400 font-semibold">{display}</span>
+    </div>
     <input
       id={id}
-      type="number"
+      type="range"
       min={min}
       max={max}
       step={step}
       disabled={disabled}
-      value={value}
-      onChange={(e) => {
-        const num = Number(e.target.value);
-        if (Number.isFinite(num)) {
-          onChange(Math.max(min, Math.min(max, num)));
-        }
-      }}
-      className="w-20 px-2 py-1 rounded bg-[#111720] border border-slate-700 text-right font-mono-num text-slate-100 disabled:opacity-50"
+      value={Math.max(min, Math.min(max, value))}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="w-full accent-amber-500 disabled:opacity-50"
     />
+  </div>
+);
+
+const SliderField: React.FC<SliderFieldProps> = (props) => (
+  <div className="bg-[#0b0f14] border border-slate-800 rounded-lg px-3.5 py-2.5">
+    <SliderRow {...props} />
   </div>
 );

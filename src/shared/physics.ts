@@ -113,11 +113,69 @@ export function hasPowerUp(
   return tank.activePowerUps.some((p) => p.type === type && p.expiresAt > nowMs);
 }
 
+export function computeArenaCameraZoom(
+  viewportW: number,
+  viewportH: number,
+  mapW: number,
+  mapH: number
+): number {
+  const vw = Math.max(320, viewportW);
+  const vh = Math.max(240, viewportH);
+  const targetAreaRatio = 0.75;
+  const rawZoom = Math.sqrt((vw * vh) / (mapW * mapH * targetAreaRatio));
+  const minZoomNoVoid = Math.max(vw / mapW, vh / mapH);
+  if (minZoomNoVoid <= 0.92) {
+    return clamp(rawZoom, Math.max(0.55, minZoomNoVoid), 0.92);
+  }
+  return clamp(rawZoom, 0.85, 1.0);
+}
+
+export interface RotationFlipState {
+  pendingClicks: number;
+  lastClickAt: number;
+}
+
+export function getShootSettleMs(
+  settings: Pick<GameSettings, 'fireCooldownMs'>
+): number {
+  return Math.max(settings.fireCooldownMs, 260);
+}
+
+export function registerFireClick(
+  flipState: RotationFlipState,
+  nowMs: number
+): void {
+  flipState.pendingClicks += 1;
+  flipState.lastClickAt = nowMs;
+}
+
+export function stepRotationFlip(
+  tank: Pick<TankEntity, 'alive' | 'rotationDir'>,
+  flipState: RotationFlipState,
+  nowMs: number,
+  settings: Pick<GameSettings, 'fireCooldownMs'>
+): boolean {
+  if (!tank.alive) {
+    flipState.pendingClicks = 0;
+    return false;
+  }
+  if (flipState.pendingClicks <= 0) return false;
+  if (nowMs - flipState.lastClickAt < getShootSettleMs(settings)) return false;
+
+  const shouldFlip = flipState.pendingClicks % 2 === 1;
+  flipState.pendingClicks = 0;
+  if (shouldFlip) {
+    tank.rotationDir = tank.rotationDir === -1 ? 1 : -1;
+    return true;
+  }
+  return false;
+}
+
 export function stepTankMotion(
   tank: Pick<
     TankEntity,
     'x' | 'y' | 'vx' | 'vy' | 'angle' | 'alive' | 'activePowerUps'
-  >,
+  > & { rotationDir?: 1 | -1 },
   thrust: boolean,
   dt: number,
   map: ArenaMap,
@@ -132,7 +190,8 @@ export function stepTankMotion(
 
   // Rotate continuously only while stationary; lock angle while Spacebar thrust is held
   if (!thrust) {
-    tank.angle = normalizeAngle(tank.angle + settings.tankRotationSpeed * dt);
+    const dir = tank.rotationDir === -1 ? -1 : 1;
+    tank.angle = normalizeAngle(tank.angle + settings.tankRotationSpeed * dir * dt);
   }
 
   const speedMultiplier = hasPowerUp(tank, 'speed', nowMs)

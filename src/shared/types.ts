@@ -105,6 +105,10 @@ export interface GameSettings {
   matchDurationSec: number;
   maxPlayersPerRoom: number;
   serverTickRate: number; // ticks/sec
+  dmWinMode: 'milestone' | 'timed';
+  killTarget: number;
+  ctfWinMode: 'milestone' | 'timed';
+  flagTarget: number;
 }
 
 export interface ClientPreferences {
@@ -136,6 +140,7 @@ export interface TankEntity {
   vy: number;
   angle: number; // hull facing angle (auto-rotates)
   aimAngle: number; // turret aiming angle toward mouse
+  rotationDir: 1 | -1; // 1 = clockwise, -1 = counter-clockwise
   hp: number;
   maxHp: number;
   ammo: number;
@@ -236,6 +241,10 @@ export interface MatchSnapshot {
     red: number;
     blue: number;
   };
+  dmWinMode: 'milestone' | 'timed';
+  killTarget: number;
+  ctfWinMode: 'milestone' | 'timed';
+  flagTarget: number;
   leaderboard: LeaderboardEntry[];
 }
 
@@ -243,6 +252,7 @@ export interface MatchResult {
   mode: GameMode;
   mapId: MapId;
   durationSec: number;
+  endReason: 'milestone' | 'timer';
   winnerId: string | null;
   winnerName: string;
   winningTeam: TeamId;

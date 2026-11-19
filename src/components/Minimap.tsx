@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { POWERUP_META } from '../shared/config';
 import { ARENA_MAPS } from '../shared/maps';
+import { computeArenaCameraZoom } from '../shared/physics';
 import { MatchSnapshot, TankEntity } from '../shared/types';
 
 interface MinimapProps {
@@ -88,10 +89,16 @@ export const Minimap: React.FC<MinimapProps> = ({ snapshot, localPlayerId }) => 
       ctx.fillRect(crate.x * sx - 2, crate.y * sy - 2, 4, 4);
     }
 
-    // 5. Camera viewport rectangle (only meaningful if arena exceeds screen size)
+    // 5. Camera viewport rectangle (adjusted for current arena zoom)
     if (localTank && typeof window !== 'undefined') {
-      const vw = Math.min(map.width, window.innerWidth);
-      const vh = Math.min(map.height, window.innerHeight);
+      const zoom = computeArenaCameraZoom(
+        window.innerWidth,
+        window.innerHeight,
+        map.width,
+        map.height
+      );
+      const vw = Math.min(map.width, window.innerWidth / zoom);
+      const vh = Math.min(map.height, window.innerHeight / zoom);
       if (vw < map.width - 4 || vh < map.height - 4) {
         const camX = Math.max(0, Math.min(map.width - vw, localTank.x - vw / 2));
         const camY = Math.max(0, Math.min(map.height - vh, localTank.y - vh / 2));

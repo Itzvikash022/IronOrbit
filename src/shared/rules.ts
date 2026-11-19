@@ -252,3 +252,18 @@ export function evaluateFlagInteraction(
 
   return { event: 'none' };
 }
+
+export function checkMilestoneReached(
+  mode: GameMode,
+  settings: Pick<GameSettings, 'dmWinMode' | 'killTarget' | 'ctfWinMode' | 'flagTarget'>,
+  tanks: Pick<TankEntity, 'kills'>[],
+  teamScores: { red: number; blue: number }
+): boolean {
+  if (mode === 'deathmatch') {
+    if (settings.dmWinMode !== 'milestone' || settings.killTarget <= 0) return false;
+    return tanks.some((t) => t.kills >= settings.killTarget);
+  }
+  if (settings.ctfWinMode !== 'milestone' || settings.flagTarget <= 0) return false;
+  return teamScores.red >= settings.flagTarget || teamScores.blue >= settings.flagTarget;
+}
+

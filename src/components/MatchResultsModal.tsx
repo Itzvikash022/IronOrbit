@@ -49,7 +49,10 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
               : `${result.winnerName} Wins`}
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            {map.name} · {result.mode === 'ctf' ? 'Capture the Flag' : 'Deathmatch'}
+            {map.name} · {result.mode === 'ctf' ? 'Capture the Flag' : 'Deathmatch'} ·{' '}
+            <span className="text-amber-300 font-medium">
+              {result.endReason === 'milestone' ? 'Milestone Reached' : 'Time Expired'}
+            </span>
           </p>
         </div>
 

@@ -9,19 +9,24 @@ import {
   Shield,
   Swords,
   Crown,
+  Target,
+  Clock,
+  Wifi,
 } from 'lucide-react';
 import { ARENA_MAPS, MAP_IDS } from '../shared/maps';
-import { GameMode, MapId, RoomInfo } from '../shared/types';
+import { GameMode, GameSettings, MapId, RoomInfo } from '../shared/types';
 
 interface RoomLobbyProps {
   room: RoomInfo;
   localPlayerId: string;
+  pingMs: number | null;
   onStartMatch: () => void;
   onLeaveRoom: () => void;
   onChangeMode: (mode: GameMode) => void;
   onChangeMap: (mapId: MapId) => void;
   onRerollMap: () => void;
   onSwitchTeam: (team: 'red' | 'blue') => void;
+  onPatchSettings: (patch: Partial<GameSettings>) => void;
   onOpenSettings: () => void;
   disconnectNotice: string | null;
 }
@@ -29,12 +34,14 @@ interface RoomLobbyProps {
 export const RoomLobby: React.FC<RoomLobbyProps> = ({
   room,
   localPlayerId,
+  pingMs,
   onStartMatch,
   onLeaveRoom,
   onChangeMode,
   onChangeMap,
   onRerollMap,
   onSwitchTeam,
+  onPatchSettings,
   onOpenSettings,
   disconnectNotice,
 }) => {
@@ -64,6 +71,22 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
+            {pingMs !== null && (
+              <div
+                data-testid="lobby-ping"
+                className={`hidden sm:flex items-center gap-1.5 bg-[#0b0f14] border border-slate-700 rounded-lg px-2.5 py-2 text-xs font-mono-num font-semibold ${
+                  pingMs <= 80
+                    ? 'text-emerald-400'
+                    : pingMs <= 160
+                      ? 'text-amber-400'
+                      : 'text-red-400'
+                }`}
+              >
+                <Wifi className="w-3.5 h-3.5" />
+                <span>{pingMs} ms</span>
+              </div>
+            )}
+
             <div className="flex items-center gap-2 bg-[#0b0f14] border border-slate-700 rounded-lg px-3.5 py-2">
               <span className="text-xs text-slate-400 font-medium">Room Code</span>
               <span
@@ -148,6 +171,103 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                   <span>Capture Flag</span>
                 </button>
               </div>
+
+              {/* Sub-mode: Milestone vs Timed */}
+              {(() => {
+                const isDm = room.mode === 'deathmatch';
+                const activeWinMode = isDm
+                  ? room.settings.dmWinMode
+                  : room.settings.ctfWinMode;
+                const activeTarget = isDm
+                  ? room.settings.killTarget
+                  : room.settings.flagTarget;
+                const unitLabel = isDm ? 'Kills' : 'Flags';
+                const minTarget = isDm ? 3 : 1;
+                const maxTarget = isDm ? 50 : 15;
+                const stepTarget = isDm ? 1 : 1;
+
+                return (
+                  <div className="mt-2.5 bg-[#0b0f14] border border-slate-800 rounded-lg p-2.5 space-y-2">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        disabled={!isHost}
+                        onClick={() =>
+                          onPatchSettings(
+                            isDm ? { dmWinMode: 'milestone' } : { ctfWinMode: 'milestone' }
+                          )
+                        }
+                        className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold border transition-colors ${
+                          activeWinMode === 'milestone'
+                            ? 'bg-emerald-500/15 border-emerald-500/70 text-emerald-300'
+                            : 'bg-[#111720] border-slate-800 text-slate-400 hover:text-slate-200'
+                        } ${isHost ? 'cursor-pointer' : 'cursor-default opacity-90'}`}
+                      >
+                        <Target className="w-3.5 h-3.5" />
+                        <span>
+                          First to {activeTarget} {unitLabel}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!isHost}
+                        onClick={() =>
+                          onPatchSettings(
+                            isDm ? { dmWinMode: 'timed' } : { ctfWinMode: 'timed' }
+                          )
+                        }
+                        className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold border transition-colors ${
+                          activeWinMode === 'timed'
+                            ? 'bg-amber-500/15 border-amber-500/70 text-amber-300'
+                            : 'bg-[#111720] border-slate-800 text-slate-400 hover:text-slate-200'
+                        } ${isHost ? 'cursor-pointer' : 'cursor-default opacity-90'}`}
+                      >
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>Timed Only</span>
+                      </button>
+                    </div>
+
+                    {isHost && activeWinMode === 'milestone' && (
+                      <div className="flex items-center justify-between text-xs px-1">
+                        <span className="text-slate-400">
+                          {isDm ? 'Kill Milestone Target' : 'Flag Capture Target'}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            aria-label={`Decrease ${unitLabel} target`}
+                            onClick={() => {
+                              const next = Math.max(minTarget, activeTarget - stepTarget);
+                              onPatchSettings(
+                                isDm ? { killTarget: next } : { flagTarget: next }
+                              );
+                            }}
+                            className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold cursor-pointer"
+                          >
+                            -
+                          </button>
+                          <span className="w-14 text-center font-mono-num font-bold text-slate-100">
+                            {activeTarget} {unitLabel}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Increase ${unitLabel} target`}
+                            onClick={() => {
+                              const next = Math.min(maxTarget, activeTarget + stepTarget);
+                              onPatchSettings(
+                                isDm ? { killTarget: next } : { flagTarget: next }
+                              );
+                            }}
+                            className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold cursor-pointer"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Map Card */}
@@ -213,7 +333,19 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                 Match Parameters
               </div>
               <div className="flex justify-between text-slate-300">
-                <span>Duration</span>
+                <span>Win Condition</span>
+                <span className="font-mono-num text-emerald-400 font-semibold">
+                  {room.mode === 'deathmatch'
+                    ? room.settings.dmWinMode === 'milestone'
+                      ? `First to ${room.settings.killTarget} Kills`
+                      : `Timed (${Math.round(room.settings.matchDurationSec / 60)} min)`
+                    : room.settings.ctfWinMode === 'milestone'
+                      ? `First to ${room.settings.flagTarget} Flags`
+                      : `Timed (${Math.round(room.settings.matchDurationSec / 60)} min)`}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>Time Limit</span>
                 <span className="font-mono-num text-slate-100">
                   {Math.round(room.settings.matchDurationSec / 60)} min
                 </span>
@@ -221,7 +353,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
               <div className="flex justify-between text-slate-300">
                 <span>Max Ammo / Reload</span>
                 <span className="font-mono-num text-slate-100">
-                  {room.settings.maxAmmo} shells · {(room.settings.ammoRegenTimeMs / 1000).toFixed(1)}s
+                  {room.settings.maxAmmo} shells · {(room.settings.ammoRegenTimeMs / 1000).toFixed(2).replace(/\.?0+$/, '')}s
                 </span>
               </div>
               <div className="flex justify-between text-slate-300">
@@ -231,9 +363,9 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                 </span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span>Respawn / Shield</span>
+                <span>Active Boost Cap</span>
                 <span className="font-mono-num text-slate-100">
-                  {(room.settings.respawnDelayMs / 1000).toFixed(1)}s / {(room.settings.invincibilityDurationMs / 1000).toFixed(1)}s
+                  Max 3 on map
                 </span>
               </div>
             </div>

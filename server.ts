@@ -11,10 +11,17 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const httpServer = http.createServer(app);
+  httpServer.keepAliveTimeout = 65000;
+  httpServer.headersTimeout = 66000;
+
   const io = new SocketIOServer(httpServer, {
     cors: { origin: '*' },
-    pingInterval: 5000,
-    pingTimeout: 8000,
+    pingInterval: 15000,
+    pingTimeout: 30000,
+    connectTimeout: 20000,
+    transports: ['websocket', 'polling'],
+    allowUpgrades: true,
+    perMessageDeflate: false,
   });
 
   app.get('/api/health', (_req, res) => {

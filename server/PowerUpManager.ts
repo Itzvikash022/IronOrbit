@@ -58,11 +58,14 @@ export class PowerUpManager {
       }
     }
 
-    // 4. Spawn new crates at configurable interval up to maxActiveCrates
-    if (
-      crates.length < settings.maxActiveCrates &&
-      nowMs - this.lastSpawnAt >= settings.crateSpawnIntervalMs
-    ) {
+    // 4. Cap active boosts at 3; while full, anchor spawn timer so a replacement spawns only after one is taken
+    const maxCrates = Math.max(1, Math.min(3, settings.maxActiveCrates));
+    if (crates.length >= maxCrates) {
+      this.lastSpawnAt = nowMs;
+      return;
+    }
+
+    if (nowMs - this.lastSpawnAt >= settings.crateSpawnIntervalMs) {
       this.lastSpawnAt = nowMs;
       const pos = findValidCratePosition(map, crates, tanks);
       if (pos) {

@@ -1,7 +1,14 @@
 import Phaser from 'phaser';
 import { DEFAULT_GAME_SETTINGS, POWERUP_META } from '../shared/config';
 import { ARENA_MAPS } from '../shared/maps';
-import { normalizeAngle, stepTankMotion } from '../shared/physics';
+import {
+  computeArenaCameraZoom,
+  normalizeAngle,
+  registerFireClick,
+  RotationFlipState,
+  stepRotationFlip,
+  stepTankMotion,
+} from '../shared/physics';
 import {
   FlagEntity,
   GameMode,
@@ -87,6 +94,8 @@ export class ArenaScene extends Phaser.Scene {
   private inputSeq = 0;
   private lastSentInputAt = 0;
   private lastSentThrust = false;
+  private localFlipState: RotationFlipState = { pendingClicks: 0, lastClickAt: 0 };
+  private lastLocalFlipResolvedAt = 0;
 
   // Juice / camera
   private hitstopTimer = 0;
@@ -130,7 +139,26 @@ export class ArenaScene extends Phaser.Scene {
     this.muzzleFlash = this.add.image(-999, -999, 'muzzle_flash').setDepth(24).setVisible(false);
 
     this.setupInputs();
+    this.scale.on('resize', this.handleResize, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      this.scale.off('resize', this.handleResize, this);
+    });
     this.enterAttractMode(this.activeMapId);
+  }
+
+  private handleResize(): void {
+    const map = ARENA_MAPS[this.activeMapId];
+    this.applyCameraZoom(map.width, map.height);
+  }
+
+  private applyCameraZoom(mapWidth: number, mapHeight: number): void {
+    const zoom = computeArenaCameraZoom(
+      this.scale.width,
+      this.scale.height,
+      mapWidth,
+      mapHeight
+    );
+    this.cameras.main.setZoom(zoom);
   }
 
   private setupInputs(): void {
@@ -169,6 +197,9 @@ export class ArenaScene extends Phaser.Scene {
       if (!this.inputEnabled || this.sceneMode !== 'active') return;
       if (pointer.leftButtonDown()) {
         this.pointerDown = true;
+        if (this.localPredTank?.alive) {
+          registerFireClick(this.localFlipState, performance.now());
+        }
         this.fireForward();
       }
     });
@@ -192,6 +223,7 @@ export class ArenaScene extends Phaser.Scene {
     const map = ARENA_MAPS[mapId];
     this.mapRenderer.render(map, 'ctf');
     this.cameras.main.setBounds(0, 0, map.width, map.height);
+    this.applyCameraZoom(map.width, map.height);
     this.redFlagSprite?.setVisible(true).setPosition(map.redBase.x, map.redBase.y);
     this.blueFlagSprite?.setVisible(true).setPosition(map.blueBase.x, map.blueBase.y);
 
@@ -236,6 +268,7 @@ export class ArenaScene extends Phaser.Scene {
     const map = ARENA_MAPS[mapId];
     this.mapRenderer.render(map, mode);
     this.cameras.main.setBounds(0, 0, map.width, map.height);
+    this.applyCameraZoom(map.width, map.height);
 
     if (initialSnapshot) {
       this.applySnapshot(initialSnapshot);
@@ -251,7 +284,23 @@ export class ArenaScene extends Phaser.Scene {
     this.settings = { ...settings };
   }
 
-  applySnapshot(snapshot: MatchSnapshot): void {
+  resyncSnapshot(snapshot: MatchSnapshot): void {
+    if (this.sceneMode !== 'active') return;
+    this.spaceHeld = false;
+    this.pointerDown = false;
+    this.lastSentThrust = false;
+    this.localFlipState = { pendingClicks: 0, lastClickAt: 0 };
+    this.localPredTank = null;
+    this.applySnapshot(snapshot, true);
+    const localTank = snapshot.tanks.find((t) => t.id === this.localPlayerId);
+    if (localTank) {
+      this.camFollowX = localTank.x;
+      this.camFollowY = localTank.y;
+      this.cameras.main.centerOn(this.camFollowX, this.camFollowY);
+    }
+  }
+
+  applySnapshot(snapshot: MatchSnapshot, hardSnap = false): void {
     if (this.sceneMode !== 'active') return;
     this.latestSnapshot = snapshot;
     this.serverTimeOffset = snapshot.serverTime - performance.now();
@@ -262,6 +311,7 @@ export class ArenaScene extends Phaser.Scene {
       const map = ARENA_MAPS[snapshot.mapId];
       this.mapRenderer.render(map, snapshot.mode);
       this.cameras.main.setBounds(0, 0, map.width, map.height);
+      this.applyCameraZoom(map.width, map.height);
     }
 
     const nowPerf = performance.now();
@@ -277,7 +327,7 @@ export class ArenaScene extends Phaser.Scene {
         } else {
           const wasDead = !this.localPredTank.alive;
           const dist = Math.hypot(srvTank.x - this.localPredTank.x, srvTank.y - this.localPredTank.y);
-          if ((wasDead && srvTank.alive) || dist > 110) {
+          if (hardSnap || (wasDead && srvTank.alive) || dist > 110) {
             this.localPredTank.x = srvTank.x;
             this.localPredTank.y = srvTank.y;
             this.localPredTank.vx = srvTank.vx;
@@ -285,10 +335,22 @@ export class ArenaScene extends Phaser.Scene {
             this.localPredTank.angle = srvTank.angle;
           } else {
             // Smooth authoritative reconciliation
-            this.localPredTank.x += (srvTank.x - this.localPredTank.x) * 0.28;
-            this.localPredTank.y += (srvTank.y - this.localPredTank.y) * 0.28;
+            this.localPredTank.x += (srvTank.x - this.localPredTank.x) * 0.3;
+            this.localPredTank.y += (srvTank.y - this.localPredTank.y) * 0.3;
             const angleDiff = normalizeAngle(srvTank.angle - this.localPredTank.angle);
-            this.localPredTank.angle = normalizeAngle(this.localPredTank.angle + angleDiff * 0.3);
+            this.localPredTank.angle = normalizeAngle(this.localPredTank.angle + angleDiff * 0.32);
+            if (!this.spaceHeld) {
+              this.localPredTank.vx = srvTank.vx;
+              this.localPredTank.vy = srvTank.vy;
+            }
+          }
+
+          if (
+            hardSnap ||
+            (this.localFlipState.pendingClicks === 0 &&
+              nowPerf - this.lastLocalFlipResolvedAt > 600)
+          ) {
+            this.localPredTank.rotationDir = srvTank.rotationDir;
           }
 
           this.localPredTank.alive = srvTank.alive;
@@ -325,10 +387,18 @@ export class ArenaScene extends Phaser.Scene {
         };
         this.tankVisuals.set(srvTank.id, entry);
       } else {
-        entry.prevX = entry.targetX;
-        entry.prevY = entry.targetY;
-        entry.prevAngle = entry.targetAngle;
-        entry.prevAim = entry.targetAim;
+        const jumpDist = Math.hypot(srvTank.x - entry.targetX, srvTank.y - entry.targetY);
+        if (hardSnap || jumpDist > 140) {
+          entry.prevX = srvTank.x;
+          entry.prevY = srvTank.y;
+          entry.prevAngle = srvTank.angle;
+          entry.prevAim = srvTank.aimAngle;
+        } else {
+          entry.prevX = entry.targetX;
+          entry.prevY = entry.targetY;
+          entry.prevAngle = entry.targetAngle;
+          entry.prevAim = entry.targetAim;
+        }
         entry.targetX = srvTank.x;
         entry.targetY = srvTank.y;
         entry.targetAngle = srvTank.angle;
@@ -545,6 +615,17 @@ export class ArenaScene extends Phaser.Scene {
 
     // 1. Update local predicted tank + send inputs at ~25Hz or on state edge
     if (this.localPredTank) {
+      if (
+        stepRotationFlip(
+          this.localPredTank,
+          this.localFlipState,
+          nowPerf,
+          this.settings
+        )
+      ) {
+        this.lastLocalFlipResolvedAt = nowPerf;
+      }
+
       if (simDt > 0) {
         stepTankMotion(
           this.localPredTank,
@@ -671,9 +752,9 @@ export class ArenaScene extends Phaser.Scene {
     if (this.ambientAccumulator < 0.22) return;
     this.ambientAccumulator = 0;
 
-    const cam = this.cameras.main;
-    const rx = cam.scrollX + Math.random() * cam.width;
-    const ry = cam.scrollY + Math.random() * cam.height;
+    const view = this.cameras.main.worldView;
+    const rx = view.x + Math.random() * view.width;
+    const ry = view.y + Math.random() * view.height;
     if (rx < 0 || rx > width || ry < 0 || ry > height) return;
 
     const tint =
@@ -713,6 +794,7 @@ export class ArenaScene extends Phaser.Scene {
 
     this.localPredTank = null;
     this.latestSnapshot = null;
+    this.localFlipState = { pendingClicks: 0, lastClickAt: 0 };
     this.redFlagSprite?.setVisible(false);
     this.blueFlagSprite?.setVisible(false);
     this.particles?.clearAll();

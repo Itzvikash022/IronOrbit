@@ -9,7 +9,7 @@ export const SPEED_BOOST_MULTIPLIER = 1.48;
 export const DOUBLE_DAMAGE_MULTIPLIER = 2;
 export const HEALTH_RESTORE_AMOUNT = 45;
 export const ASSIST_WINDOW_MS = 6000;
-export const RECONNECT_GRACE_MS = 12000;
+export const RECONNECT_GRACE_MS = 45000;
 
 export const SCORING = {
   KILL: 100,
@@ -34,11 +34,52 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   powerUpDurationMs: 8500,
   crateSpawnIntervalMs: 6500,
   crateDespawnMs: 22000,
-  maxActiveCrates: 5,
+  maxActiveCrates: 3,
   matchDurationSec: 300, // 5 minutes
   maxPlayersPerRoom: 12,
   serverTickRate: 25,
+  dmWinMode: 'milestone',
+  killTarget: 10,
+  ctfWinMode: 'milestone',
+  flagTarget: 3,
 };
+
+export function sanitizeGameSettings(
+  input?: Partial<GameSettings>,
+  base: GameSettings = DEFAULT_GAME_SETTINGS
+): GameSettings {
+  const merged: GameSettings = { ...base, ...input };
+  const clampNum = (v: unknown, min: number, max: number, fallback: number): number => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  };
+  return {
+    tankRotationSpeed: clampNum(merged.tankRotationSpeed, (45 * Math.PI) / 180, (360 * Math.PI) / 180, base.tankRotationSpeed),
+    tankMoveSpeed: Math.round(clampNum(merged.tankMoveSpeed, 140, 420, base.tankMoveSpeed)),
+    tankAcceleration: clampNum(merged.tankAcceleration, 600, 3000, base.tankAcceleration),
+    tankDeceleration: clampNum(merged.tankDeceleration, 600, 3500, base.tankDeceleration),
+    projectileSpeed: Math.round(clampNum(merged.projectileSpeed, 400, 1200, base.projectileSpeed)),
+    projectileDamage: Math.round(clampNum(merged.projectileDamage, 10, 100, base.projectileDamage)),
+    projectileRange: Math.round(clampNum(merged.projectileRange, 400, 1400, base.projectileRange)),
+    fireCooldownMs: Math.round(clampNum(merged.fireCooldownMs, 120, 1000, base.fireCooldownMs)),
+    maxAmmo: Math.round(clampNum(merged.maxAmmo, 3, 10, base.maxAmmo)),
+    ammoRegenTimeMs: Math.round(clampNum(merged.ammoRegenTimeMs, 500, 4000, base.ammoRegenTimeMs)),
+    respawnDelayMs: Math.round(clampNum(merged.respawnDelayMs, 1000, 8000, base.respawnDelayMs)),
+    invincibilityDurationMs: Math.round(clampNum(merged.invincibilityDurationMs, 1000, 6000, base.invincibilityDurationMs)),
+    powerUpDurationMs: Math.round(clampNum(merged.powerUpDurationMs, 3000, 20000, base.powerUpDurationMs)),
+    crateSpawnIntervalMs: Math.round(clampNum(merged.crateSpawnIntervalMs, 2500, 20000, base.crateSpawnIntervalMs)),
+    crateDespawnMs: Math.round(clampNum(merged.crateDespawnMs, 8000, 45000, base.crateDespawnMs)),
+    maxActiveCrates: 3,
+    matchDurationSec: Math.round(clampNum(merged.matchDurationSec, 60, 900, base.matchDurationSec)),
+    maxPlayersPerRoom: Math.round(clampNum(merged.maxPlayersPerRoom, 2, 16, base.maxPlayersPerRoom)),
+    serverTickRate: Math.round(clampNum(merged.serverTickRate, 15, 40, base.serverTickRate)),
+    dmWinMode: merged.dmWinMode === 'timed' ? 'timed' : 'milestone',
+    killTarget: Math.round(clampNum(merged.killTarget, 3, 50, base.killTarget)),
+    ctfWinMode: merged.ctfWinMode === 'timed' ? 'timed' : 'milestone',
+    flagTarget: Math.round(clampNum(merged.flagTarget, 1, 15, base.flagTarget)),
+  };
+}
 
 export interface PowerUpMeta {
   type: PowerUpType;
