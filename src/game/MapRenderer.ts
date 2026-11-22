@@ -13,11 +13,13 @@ export class MapRenderer {
     this.layer.removeAll(true);
 
     // 1. Tiled Biome Floor
+    // Floor extends well past the arena so letterbox space shows ground, not black.
+    const FLOOR_MARGIN = 3000;
     const tile = this.scene.add.tileSprite(
       map.width / 2,
       map.height / 2,
-      map.width,
-      map.height,
+      map.width + FLOOR_MARGIN * 2,
+      map.height + FLOOR_MARGIN * 2,
       `tile_${map.id}`
     );
     this.layer.add(tile);

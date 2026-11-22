@@ -222,7 +222,7 @@ export class ArenaScene extends Phaser.Scene {
     this.activeMapId = mapId;
     const map = ARENA_MAPS[mapId];
     this.mapRenderer.render(map, 'ctf');
-    this.cameras.main.setBounds(0, 0, map.width, map.height);
+    this.cameras.main.setBounds(-4000, -4000, map.width + 8000, map.height + 8000);
     this.applyCameraZoom(map.width, map.height);
     this.redFlagSprite?.setVisible(true).setPosition(map.redBase.x, map.redBase.y);
     this.blueFlagSprite?.setVisible(true).setPosition(map.blueBase.x, map.blueBase.y);
@@ -267,7 +267,7 @@ export class ArenaScene extends Phaser.Scene {
 
     const map = ARENA_MAPS[mapId];
     this.mapRenderer.render(map, mode);
-    this.cameras.main.setBounds(0, 0, map.width, map.height);
+    this.cameras.main.setBounds(-4000, -4000, map.width + 8000, map.height + 8000);
     this.applyCameraZoom(map.width, map.height);
 
     this.camFollowX = map.width * 0.5;
@@ -307,7 +307,7 @@ export class ArenaScene extends Phaser.Scene {
       this.activeGameMode = snapshot.mode;
       const map = ARENA_MAPS[snapshot.mapId];
       this.mapRenderer.render(map, snapshot.mode);
-      this.cameras.main.setBounds(0, 0, map.width, map.height);
+      this.cameras.main.setBounds(-4000, -4000, map.width + 8000, map.height + 8000);
       this.applyCameraZoom(map.width, map.height);
     }
 

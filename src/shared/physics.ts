@@ -126,7 +126,8 @@ export function computeArenaCameraZoom(
   const vw = Math.max(320, viewportW);
   const vh = Math.max(240, viewportH);
   if (mapW <= 0 || mapH <= 0) return 1;
-  return Math.max(vw / mapW, vh / mapH);
+  // Contain: the whole map is always visible; leftover space is filled with extended floor.
+  return Math.min(vw / mapW, vh / mapH);
 }
 
 export interface RotationFlipState {
