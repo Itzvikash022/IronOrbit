@@ -268,7 +268,7 @@ function makeShell(overrides: Partial<ProjectileEntity> = {}): ProjectileEntity 
 }
 
 test('wind bends a shell noticeably but never absurdly', () => {
-  const map = ARENA_MAPS.dunes; // open lane so the shell flies its full range
+  const map = { ...ARENA_MAPS.dunes, obstacles: [] }; // open lane so the shell flies its full range
   const accel = windAcceleration({ active: true, warning: false, angle: Math.PI / 2, strength: 1 });
   const shell = makeShell();
   let steps = 0;
@@ -284,7 +284,7 @@ test('wind bends a shell noticeably but never absurdly', () => {
 });
 
 test('only wind-bent shells can hit their owner, and only after travelling away', () => {
-  const map = ARENA_MAPS.storm;
+  const map = { ...ARENA_MAPS.storm, obstacles: [] };
   const owner = makeTank({ id: 'p1', x: 700, y: 700 });
 
   const straight = makeShell({ x: 740, y: 700, vx: -720, vy: 0 });

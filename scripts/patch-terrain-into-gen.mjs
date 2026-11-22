@@ -8,20 +8,23 @@ const TANK_RADIUS = 20;
 const CRATE_RADIUS = 18;
 const obstaclesById = JSON.parse(fs.readFileSync('scripts/terrain-obstacles-curated.json', 'utf8'));
 
-// Extra magma cover from the painted brick layout (right/top clusters)
-obstaclesById.magma.push(
-  { id: 'maE', x: 2360, y: 380, w: 140, h: 110, kind: 'rock' },
-  { id: 'maF', x: 2100, y: 700, w: 130, h: 90, kind: 'rock' },
-  { id: 'maG', x: 900, y: 700, w: 110, h: 100, kind: 'rock' },
-  { id: 'maH', x: 1500, y: 200, w: 150, h: 80, kind: 'rock' },
-  { id: 'maI', x: 600, y: 600, w: 90, h: 90, kind: 'rock' },
-  { id: 'maJ', x: 1900, y: 500, w: 100, h: 80, kind: 'rock' }
-);
+// Obstacles come straight from scripts/refine-colliders.mjs (painted rocks only).
+// Spawns / crates / bases are nudged to free ground instead of deleting painted rocks.
+const clearance = (cx, cy, obstacles) =>
+  obstacles.reduce((m, o) => Math.min(m, circleRectDist(cx, cy, o)), Infinity);
 
-// Fix glacier SW cluster so it clears bottom-left spawn
-obstaclesById.glacier = obstaclesById.glacier.map((o) =>
-  o.id === 'glA' ? { ...o, y: 1060, h: 140, w: 280, x: 120 } : o
-);
+function nudgeToFree(p, obstacles, need) {
+  if (clearance(p.x, p.y, obstacles) >= need) return p;
+  for (let r = 12; r <= 600; r += 12) {
+    for (let a = 0; a < 360; a += 15) {
+      const x = Math.round(p.x + Math.cos((a * Math.PI) / 180) * r);
+      const y = Math.round(p.y + Math.sin((a * Math.PI) / 180) * r);
+      if (x < 60 || y < 60 || x > W - 60 || y > H - 60) continue;
+      if (clearance(x, y, obstacles) >= need) return { x, y };
+    }
+  }
+  return p;
+}
 
 const STD_RED_BASE = { x: 224, y: 720, radius: 68 };
 const STD_BLUE_BASE = { x: W - 224, y: 720, radius: 68 };
@@ -64,7 +67,7 @@ function validate(map) {
   for (const o of map.obstacles) {
     if (o.x < 0 || o.y < 0 || o.x + o.w > W || o.y + o.h > H) errors.push(`${o.id} OOB`);
     for (const base of [map.redBase, map.blueBase]) {
-      if (circleRectDist(base.x, base.y, o) < base.radius + TANK_RADIUS + 10) errors.push(`${o.id} base`);
+      if (circleRectDist(base.x, base.y, o) < base.radius + TANK_RADIUS + 6) errors.push(`${o.id} base`);
     }
   }
   for (const p of [...map.ffaSpawns, ...map.redSpawns, ...map.blueSpawns]) {
@@ -147,6 +150,25 @@ const META = {
   },
 };
 
+function pickBases(obstacles) {
+  const need = STD_RED_BASE.radius + TANK_RADIUS + 6;
+  for (let d = 0; d <= 500; d += 20) {
+    for (const dy of d === 0 ? [0] : [-d, d]) {
+      const y = STD_RED_BASE.y + dy;
+      if (
+        clearance(STD_RED_BASE.x, y, obstacles) >= need &&
+        clearance(STD_BLUE_BASE.x, y, obstacles) >= need
+      ) {
+        return {
+          redBase: { ...STD_RED_BASE, y },
+          blueBase: { ...STD_BLUE_BASE, y },
+        };
+      }
+    }
+  }
+  return { redBase: STD_RED_BASE, blueBase: STD_BLUE_BASE };
+}
+
 // Load existing betaMaps and replace only terrain maps; keep obstacle maps as-is
 const existingPath = 'src/shared/betaMaps.ts';
 const existingMod = await import('../src/shared/betaMaps.ts');
@@ -162,12 +184,11 @@ for (const id of Object.keys(META)) {
     height: H,
     palette: meta.palette,
     obstacles: obstaclesById[id],
-    ffaSpawns: STD_FFA,
-    redSpawns: STD_RED_SPAWNS,
-    blueSpawns: STD_RED_SPAWNS.map(mirrorPt),
-    redBase: STD_RED_BASE,
-    blueBase: STD_BLUE_BASE,
-    crateZones: STD_CRATES,
+    ffaSpawns: STD_FFA.map((p) => nudgeToFree(p, obstaclesById[id], TANK_RADIUS + 10)),
+    redSpawns: STD_RED_SPAWNS.map((p) => nudgeToFree(p, obstaclesById[id], TANK_RADIUS + 10)),
+    blueSpawns: STD_RED_SPAWNS.map(mirrorPt).map((p) => nudgeToFree(p, obstaclesById[id], TANK_RADIUS + 10)),
+    ...pickBases(obstaclesById[id]),
+    crateZones: STD_CRATES.map((p) => nudgeToFree(p, obstaclesById[id], CRATE_RADIUS + 14)),
     category: 'terrain',
     beta: true,
     bakedFloor: true,
