@@ -1,5 +1,6 @@
 import React from 'react';
-import { Flag, ShieldCheck, Wifi } from 'lucide-react';
+import { ArrowRight, Flag, ShieldCheck, Wifi, Wind, Zap } from 'lucide-react';
+import type { ArenaEnvStatus } from '../game/ArenaScene';
 import { POWERUP_META } from '../shared/config';
 import {
   FlagBannerEvent,
@@ -18,6 +19,7 @@ interface GameHudProps {
   killFeed: KillFeedEvent[];
   flagBanner: FlagBannerEvent | null;
   disconnectNotice: string | null;
+  envStatus?: ArenaEnvStatus | null;
 }
 
 function formatTimer(sec: number): string {
@@ -40,6 +42,7 @@ export const GameHud: React.FC<GameHudProps> = ({
   killFeed,
   flagBanner,
   disconnectNotice,
+  envStatus = null,
 }) => {
   if (!snapshot) return null;
 
@@ -66,6 +69,35 @@ export const GameHud: React.FC<GameHudProps> = ({
 
   return (
     <div className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3">
+      {/* Beta-map environment indicators */}
+      {envStatus && (envStatus.windActive || envStatus.windWarning) && (
+        <div
+          data-testid="hud-wind"
+          className={`absolute left-1/2 -translate-x-1/2 top-14 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-950/45 border border-sky-300/20 text-[10px] font-semibold uppercase tracking-wider text-sky-200/90 `}
+        >
+          <Wind className="w-3 h-3" />
+          <span>{envStatus.windWarning ? 'Gust incoming' : 'Wind'}</span>
+          <ArrowRight
+            className="w-3.5 h-3.5"
+            style={{ transform: `rotate(rad)`, opacity: 0.5 + envStatus.windStrength * 0.5 }}
+          />
+        </div>
+      )}
+      {envStatus && envStatus.stunMsLeft > 0 && (
+        <div
+          data-testid="hud-stun"
+          className="absolute left-1/2 -translate-x-1/2 top-1/3 flex flex-col items-center gap-1"
+        >
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-yellow-400/20 border border-yellow-300/50 text-yellow-200 font-display font-bold tracking-widest text-sm animate-pulse">
+            <Zap className="w-4 h-4" />
+            STUNNED
+          </div>
+          <div className="font-mono-num text-xs text-yellow-100/80">
+            {(envStatus.stunMsLeft / 1000).toFixed(1)}s
+          </div>
+        </div>
+      )}
+
       {/* Top: ping | timer + scores | kill feed */}
       <div className="relative flex items-start justify-between gap-3">
         <div

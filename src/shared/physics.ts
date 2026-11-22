@@ -4,6 +4,7 @@ import {
   SPEED_BOOST_MULTIPLIER,
   TANK_RADIUS,
 } from './config.ts';
+import { HAZARD_TUNING, surfaceModifiers } from './hazards.ts';
 import type {
   ArenaMap,
   GameSettings,
@@ -11,6 +12,7 @@ import type {
   ProjectileEntity,
   Rect,
   SupplyCrateEntity,
+  SurfaceKind,
   TankEntity,
   Vec2,
 } from './types.ts';
@@ -172,16 +174,25 @@ export function stepRotationFlip(
   return false;
 }
 
+export interface TankEnv {
+  surface?: SurfaceKind;
+}
+
+export function isTankStunned(tank: { stunnedUntil?: number }, nowMs: number): boolean {
+  return (tank.stunnedUntil ?? 0) > nowMs;
+}
+
 export function stepTankMotion(
   tank: Pick<
     TankEntity,
     'x' | 'y' | 'vx' | 'vy' | 'angle' | 'alive' | 'activePowerUps'
-  > & { rotationDir?: 1 | -1 },
-  thrust: boolean,
+  > & { rotationDir?: 1 | -1; stunnedUntil?: number },
+  thrustInput: boolean,
   dt: number,
   map: ArenaMap,
   settings: GameSettings,
-  nowMs: number
+  nowMs: number,
+  env?: TankEnv
 ): void {
   if (!tank.alive) {
     tank.vx = 0;
@@ -189,8 +200,13 @@ export function stepTankMotion(
     return;
   }
 
+  // Stunned tanks can't drive or spin; they just coast to a stop.
+  const stunned = isTankStunned(tank, nowMs);
+  const thrust = thrustInput && !stunned;
+  const mods = surfaceModifiers(env?.surface ?? 'none');
+
   // Rotate continuously only while stationary; lock angle while Spacebar thrust is held
-  if (!thrust) {
+  if (!thrust && !stunned) {
     const dir = tank.rotationDir === -1 ? -1 : 1;
     tank.angle = normalizeAngle(tank.angle + settings.tankRotationSpeed * dir * dt);
   }
@@ -198,7 +214,7 @@ export function stepTankMotion(
   const speedMultiplier = hasPowerUp(tank, 'speed', nowMs)
     ? SPEED_BOOST_MULTIPLIER
     : 1;
-  const maxSpeed = settings.tankMoveSpeed * speedMultiplier;
+  const maxSpeed = settings.tankMoveSpeed * speedMultiplier * mods.speedMul;
 
   if (thrust) {
     const dirX = Math.cos(tank.angle);
@@ -209,7 +225,7 @@ export function stepTankMotion(
     const dvx = targetVx - tank.vx;
     const dvy = targetVy - tank.vy;
     const dvLen = Math.hypot(dvx, dvy);
-    const maxStep = settings.tankAcceleration * dt;
+    const maxStep = settings.tankAcceleration * mods.accelMul * dt;
 
     if (dvLen <= maxStep || dvLen === 0) {
       tank.vx = targetVx;
@@ -221,7 +237,7 @@ export function stepTankMotion(
   } else {
     // Immediate / snappy braking when Spacebar is released
     const speed = Math.hypot(tank.vx, tank.vy);
-    const decelStep = settings.tankDeceleration * dt;
+    const decelStep = settings.tankDeceleration * mods.decelMul * dt;
     if (speed <= decelStep || speed === 0) {
       tank.vx = 0;
       tank.vy = 0;
@@ -315,8 +331,22 @@ export function stepProjectile(
   proj: ProjectileEntity,
   dt: number,
   map: ArenaMap,
-  tanks: TankEntity[]
+  tanks: TankEntity[],
+  wind?: { ax: number; ay: number }
 ): ProjectileStepResult {
+  if (wind && (wind.ax !== 0 || wind.ay !== 0)) {
+    const speed = Math.hypot(proj.vx, proj.vy);
+    if (speed > 0) {
+      const dvx = wind.ax * dt;
+      const dvy = wind.ay * dt;
+      // perpendicular component of the push = how much the heading is actually bent
+      const perp = Math.abs((dvx * -proj.vy + dvy * proj.vx) / speed);
+      proj.vx += dvx;
+      proj.vy += dvy;
+      proj.windBendAcc = (proj.windBendAcc ?? 0) + perp;
+      if (proj.windBendAcc >= HAZARD_TUNING.windBendThreshold) proj.windBent = true;
+    }
+  }
   const prevX = proj.x;
   const prevY = proj.y;
   const stepX = proj.vx * dt;
@@ -365,7 +395,11 @@ export function stepProjectile(
   // Check tank hit (excluding owner; friendly fire checked in rules)
   for (let i = 0; i < tanks.length; i++) {
     const tank = tanks[i];
-    if (!tank.alive || tank.id === proj.ownerId) continue;
+    if (!tank.alive) continue;
+    if (tank.id === proj.ownerId) {
+      // Only a wind-bent shell that has travelled far enough can come back to hit its owner.
+      if (!proj.windBent || proj.distanceTraveled < HAZARD_TUNING.windSelfHitMinDist) continue;
+    }
     if (
       segmentIntersectsCircle(
         prevX,

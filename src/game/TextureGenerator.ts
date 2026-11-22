@@ -510,7 +510,148 @@ export function generateGameTextures(scene: Phaser.Scene): void {
         ctx.strokeStyle = 'rgba(0,0,0,0.12)';
         ctx.strokeRect(10, 10, 108, 108);
         ctx.strokeRect(138, 138, 108, 108);
-      } else if (id === 'lava') {
+      } else if (id === 'dunes') {
+        // Soft wind-rippled sand
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 7; i++) {
+          const y0 = 18 + i * 36 + rand(i + 3) * 10;
+          ctx.strokeStyle = i % 2 === 0 ? map.palette.groundDetail : map.palette.groundAccent;
+          ctx.beginPath();
+          for (let x = 0; x <= 256; x += 8) {
+            const y = y0 + Math.sin((x / 256) * Math.PI * 2 + i) * 5;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        ctx.fillStyle = map.palette.groundAccent;
+        for (let i = 0; i < 18; i++) {
+          ctx.fillRect(rand(i + 300) * 250, rand(i + 340) * 250, 2, 2);
+        }
+      } else if (id === 'glacier') {
+        ctx.fillStyle = map.palette.groundAccent;
+        for (let i = 0; i < 5; i++) {
+          ctx.globalAlpha = 0.55;
+          ctx.beginPath();
+          ctx.ellipse(rand(i + 11) * 220 + 18, rand(i + 31) * 220 + 18, 30 + rand(i + 61) * 26, 12 + rand(i + 91) * 10, rand(i + 5) * Math.PI, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 1.3;
+        for (let i = 0; i < 7; i++) {
+          let sx = rand(i + 200) * 240 + 8;
+          let sy = rand(i + 220) * 240 + 8;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          for (let s = 0; s < 3; s++) {
+            sx += (rand(i * 7 + s + 240) - 0.4) * 40;
+            sy += (rand(i * 7 + s + 260) - 0.5) * 40;
+            ctx.lineTo(sx, sy);
+          }
+          ctx.stroke();
+        }
+      } else if (id === 'magma') {
+        ctx.fillStyle = map.palette.groundAccent;
+        for (let i = 0; i < 12; i++) {
+          const cx = rand(i + 7) * 230 + 12;
+          const cy = rand(i + 27) * 230 + 12;
+          const r = 12 + rand(i + 47) * 18;
+          ctx.beginPath();
+          for (let k = 0; k < 6; k++) {
+            const a = (k / 6) * Math.PI * 2;
+            const px = cx + Math.cos(a) * r;
+            const py = cy + Math.sin(a) * r;
+            if (k === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.strokeStyle = 'rgba(249, 115, 22, 0.28)';
+        ctx.lineWidth = 1.6;
+        for (let i = 0; i < 4; i++) {
+          let sx = rand(i + 400) * 256;
+          let sy = rand(i + 420) * 256;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          for (let s = 0; s < 4; s++) {
+            sx += (rand(i * 5 + s + 440) - 0.5) * 70;
+            sy += (rand(i * 5 + s + 460) - 0.5) * 70;
+            ctx.lineTo(sx, sy);
+          }
+          ctx.stroke();
+        }
+      } else if (id === 'storm') {
+        // Wind-combed grass streaks
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 34; i++) {
+          const sx = rand(i + 1) * 250;
+          const sy = rand(i + 60) * 250;
+          ctx.strokeStyle = i % 3 === 0 ? map.palette.groundAccent : map.palette.groundDetail;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + 12 + rand(i + 120) * 10, sy - 4 - rand(i + 160) * 5);
+          ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        for (let i = 0; i < 6; i++) {
+          ctx.beginPath();
+          ctx.ellipse(rand(i + 500) * 240 + 8, rand(i + 520) * 240 + 8, 18, 9, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (id === 'sentinel') {
+        // Concrete slabs with expansion joints and hazard-stripe studs
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(1, 1, 126, 126);
+        ctx.strokeRect(129, 1, 126, 126);
+        ctx.strokeRect(1, 129, 126, 126);
+        ctx.strokeRect(129, 129, 126, 126);
+        ctx.fillStyle = map.palette.groundAccent;
+        for (let i = 0; i < 10; i++) {
+          ctx.fillRect(rand(i + 3) * 240 + 6, rand(i + 33) * 240 + 6, 3, 3);
+        }
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
+        for (let k = 0; k < 4; k++) {
+          ctx.fillRect(10 + k * 10, 120, 6, 4);
+        }
+      } else if (id === 'overgrowth') {
+        for (let i = 0; i < 30; i++) {
+          ctx.fillStyle = i % 3 === 0 ? map.palette.groundAccent : map.palette.groundDetail;
+          ctx.beginPath();
+          ctx.ellipse(rand(i + 2) * 250 + 3, rand(i + 52) * 250 + 3, 3 + rand(i + 92) * 7, 2 + rand(i + 132) * 4, rand(i + 172) * Math.PI, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.strokeStyle = map.palette.groundAccent;
+        ctx.lineWidth = 1.3;
+        for (let i = 0; i < 16; i++) {
+          const sx = rand(i + 600) * 250;
+          const sy = rand(i + 640) * 250;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + (rand(i + 680) - 0.5) * 8, sy - 6 - rand(i + 720) * 5);
+          ctx.stroke();
+        }
+      } else if (id === 'blastyard') {
+        ctx.fillStyle = map.palette.groundAccent;
+        for (let i = 0; i < 30; i++) {
+          ctx.fillRect(rand(i + 4) * 252, rand(i + 44) * 252, 2 + rand(i + 84) * 2, 2);
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(0, 70);
+        ctx.lineTo(256, 84);
+        ctx.moveTo(0, 150);
+        ctx.lineTo(256, 164);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(0,0,0,0.20)';
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.arc(rand(i + 800) * 230 + 12, rand(i + 820) * 230 + 12, 10 + rand(i + 840) * 12, 0, Math.PI * 2);
+          ctx.fill();
+        }      } else if (id === 'lava') {
         ctx.fillStyle = map.palette.groundDetail;
         for (let i = 0; i < 10; i++) {
           ctx.beginPath();

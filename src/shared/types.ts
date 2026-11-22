@@ -11,7 +11,7 @@ export function gameModeLabel(mode: GameMode): string {
   if (mode === 'tdm') return 'Team Deathmatch';
   return 'Deathmatch';
 }
-export type MapId =
+export type ClassicMapId =
   | 'desert'
   | 'industrial'
   | 'forest'
@@ -19,6 +19,19 @@ export type MapId =
   | 'city'
   | 'outpost'
   | 'lava';
+
+export type BetaMapId =
+  | 'dunes'
+  | 'glacier'
+  | 'magma'
+  | 'storm'
+  | 'sentinel'
+  | 'overgrowth'
+  | 'blastyard';
+
+export type MapId = ClassicMapId | BetaMapId;
+
+export type MapCategory = 'classic' | 'terrain' | 'obstacle';
 
 export type PowerUpType =
   | 'speed'
@@ -90,6 +103,45 @@ export interface MapPalette {
   ambientEffect: 'dust' | 'sparks' | 'leaves' | 'snow' | 'ash' | 'none' | 'embers';
 }
 
+export type SurfaceKind = 'none' | 'sand' | 'ice' | 'lava';
+export type HazardKind = 'sand' | 'ice' | 'lava' | 'grass';
+
+/** Elliptical floor hazard generated deterministically from (map, matchSeed). */
+export interface HazardZone {
+  id: string;
+  kind: HazardKind;
+  x: number; // center
+  y: number;
+  rx: number;
+  ry: number;
+}
+
+export interface SurfaceZoneSpec {
+  kind: HazardKind;
+  count: [number, number]; // min..max zones per match
+  rx: [number, number];
+  ry: [number, number];
+}
+
+/** Per-map description of which mechanics are active (and how many). */
+export interface HazardSpec {
+  surfaces?: SurfaceZoneSpec[];
+  wind?: boolean;
+  turrets?: [number, number]; // min..max wall turrets
+  bombs?: boolean;
+}
+
+export interface TurretEntity {
+  id: string;
+  x: number;
+  y: number;
+  angle: number;
+  /** Home side; only hostile to the opposite team in CTF, neutral in TDM/FFA. */
+  team: 'red' | 'blue';
+  /** 0..1 reload charge for the barrel glow telegraph. */
+  charge: number;
+}
+
 export interface ArenaMap {
   id: MapId;
   name: string;
@@ -104,6 +156,9 @@ export interface ArenaMap {
   redBase: BaseZone;
   blueBase: BaseZone;
   crateZones: Vec2[];
+  category?: MapCategory;
+  beta?: boolean;
+  hazardSpec?: HazardSpec;
 }
 
 export interface GameSettings {
@@ -188,6 +243,8 @@ export interface TankEntity {
   connected: boolean;
   lastProcessedSeq: number;
   isBot?: boolean;
+  /** Epoch ms until which the tank is stunned (can't drive or shoot). */
+  stunnedUntil?: number;
 }
 
 export interface ProjectileEntity {
@@ -202,6 +259,10 @@ export interface ProjectileEntity {
   distanceTraveled: number;
   maxRange: number;
   isDoubleDamage: boolean;
+  /** Set once wind has noticeably deflected this shell (enables reduced self-hit). */
+  windBent?: boolean;
+  /** Accumulated sideways wind push (px/s); drives windBent. */
+  windBendAcc?: number;
 }
 
 export interface SupplyCrateEntity {
@@ -243,6 +304,8 @@ export interface RoomInfo {
   settings: GameSettings;
   /** Shared difficulty for all bots in the room (0–3 bots). */
   botDifficulty: BotDifficulty;
+  /** When true, Randomize / Play Again may pick beta maps. */
+  includeBetaMaps: boolean;
 }
 
 export interface LeaderboardEntry {
@@ -260,6 +323,11 @@ export interface LeaderboardEntry {
 export interface MatchSnapshot {
   serverTime: number;
   timeRemainingSec: number;
+  /** Seed shared by client+server to rebuild hazards, wind gusts and bomb schedule. */
+  matchSeed: number;
+  /** Server epoch ms at match start (elapsed = serverTime - matchStartTime). */
+  matchStartTime: number;
+  turrets: TurretEntity[];
   mode: GameMode;
   mapId: MapId;
   tanks: TankEntity[];

@@ -13,6 +13,7 @@ import {
   RoomInfo,
   SupplyCrateEntity,
 } from '../shared/types';
+import { PROTOCOL_VERSION } from '../shared/config';
 
 function getOrCreatePlayerId(): string {
   if (typeof window === 'undefined') return 'server';
@@ -37,6 +38,8 @@ export interface NetworkListeners {
   onRoomUpdated?: (room: RoomInfo) => void;
   onRejoinedRoom?: (payload: RoomSyncPayload) => void;
   onSessionExpired?: (reason: string) => void;
+  /** Server runs a different protocol version: the page must be refreshed. */
+  onVersionMismatch?: () => void;
   onMatchStarted?: (payload: { room: RoomInfo; snapshot: MatchSnapshot }) => void;
   onMatchSnapshot?: (snapshot: MatchSnapshot) => void;
   onShotFired?: (payload: {
@@ -122,6 +125,7 @@ export class NetworkClient {
       reconnectionDelay: 500,
       reconnectionDelayMax: 3000,
       timeout: 20000,
+      auth: { protocolVersion: PROTOCOL_VERSION },
     };
 
     this.socket = serverUrl ? io(serverUrl, opts) : io(opts);
@@ -130,6 +134,14 @@ export class NetworkClient {
       this.listeners.onConnectChange?.(true);
       if (this.activeRoomCode && this.activeNickname) {
         void this.rejoinActiveRoom();
+      }
+    });
+    this.socket.on('connect_error', (err: Error) => {
+      if (err?.message === 'version_mismatch') {
+        // Stop retrying: a refresh is the only fix.
+        this.socket?.io.reconnection(false);
+        this.socket?.disconnect();
+        this.listeners.onVersionMismatch?.();
       }
     });
     this.socket.on('disconnect', () => {
@@ -353,6 +365,7 @@ export class NetworkClient {
     mode?: GameMode;
     mapId?: MapId;
     rerollMap?: boolean;
+    includeBetaMaps?: boolean;
     settings?: Partial<GameSettings>;
   }): void {
     this.socket?.emit('room:config', payload);

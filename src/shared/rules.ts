@@ -20,11 +20,14 @@ import type {
 } from './types.ts';
 
 export function canTankFire(
-  tank: Pick<TankEntity, 'alive' | 'ammo' | 'lastShotAt' | 'activePowerUps'>,
+  tank: Pick<TankEntity, 'alive' | 'ammo' | 'lastShotAt' | 'activePowerUps'> & {
+    stunnedUntil?: number;
+  },
   nowMs: number,
   settings: GameSettings
 ): boolean {
   if (!tank.alive) return false;
+  if ((tank.stunnedUntil ?? 0) > nowMs) return false;
   const infAmmo = hasPowerUp(tank, 'infinite_ammo', nowMs);
   if (!infAmmo && tank.ammo <= 0) return false;
 
@@ -117,6 +120,30 @@ export function applyTankDamage(
     blockedReason: 'none',
     eliminated,
   };
+}
+
+/**
+ * Damage from the environment (lava, turrets, wind-bent self hits). No attacker/team checks;
+ * respawn invincibility and shields still protect.
+ */
+export function applyEnvironmentDamage(
+  victim: TankEntity,
+  amount: number,
+  nowMs: number
+): DamageResult {
+  if (!victim.alive) return { appliedDamage: 0, blockedReason: 'dead', eliminated: false };
+  if (victim.invincibleUntil > nowMs) {
+    return { appliedDamage: 0, blockedReason: 'invincible', eliminated: false };
+  }
+  if (hasPowerUp(victim, 'shield', nowMs)) {
+    return { appliedDamage: 0, blockedReason: 'shield', eliminated: false };
+  }
+  const dmg = Math.max(0, Math.round(amount));
+  if (dmg <= 0) return { appliedDamage: 0, blockedReason: 'none', eliminated: false };
+  victim.hp = Math.max(0, victim.hp - dmg);
+  const eliminated = victim.hp <= 0;
+  if (eliminated) victim.alive = false;
+  return { appliedDamage: dmg, blockedReason: 'none', eliminated };
 }
 
 export function activatePowerUp(

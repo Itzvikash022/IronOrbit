@@ -5,13 +5,13 @@ import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, Socket } from 'socket.io-client';
 import { attachSocketServer } from './SocketServer';
 import { PowerUpManager } from './PowerUpManager';
-import { DEFAULT_GAME_SETTINGS } from '../src/shared/config';
+import { DEFAULT_GAME_SETTINGS, PROTOCOL_VERSION } from '../src/shared/config';
 import { ARENA_MAPS } from '../src/shared/maps';
 import { MatchResult, MatchSnapshot, RoomInfo, SupplyCrateEntity } from '../src/shared/types';
 
 function connectClient(url: string): Promise<Socket> {
   return new Promise((resolve, reject) => {
-    const client = ioClient(url, { transports: ['websocket'] });
+    const client = ioClient(url, { transports: ['websocket'], auth: { protocolVersion: PROTOCOL_VERSION } });
     client.on('connect', () => resolve(client));
     client.on('connect_error', reject);
   });

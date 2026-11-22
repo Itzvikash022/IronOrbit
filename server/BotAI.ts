@@ -60,13 +60,18 @@ function pickTarget(self: TankEntity, tanks: TankEntity[], mode: GameMode): Tank
   return best;
 }
 
+export interface BotHazardContext {
+  isLava: (x: number, y: number) => boolean;
+}
+
 /** Decide thrust / shoot / flip for one bot tank this tick. */
 export function decideBotAction(
   self: TankEntity,
   tanks: TankEntity[],
   mode: GameMode,
   difficulty: BotDifficulty,
-  rng: () => number = Math.random
+  rng: () => number = Math.random,
+  hazards?: BotHazardContext
 ): BotDecision {
   const profile = PROFILES[difficulty] ?? PROFILES.player;
   const target = pickTarget(self, tanks, mode);
@@ -89,6 +94,21 @@ export function decideBotAction(
     (aligned && rng() < profile.flipChance * 0.15);
 
   const wantShoot = aligned && rng() < profile.fireChance;
+
+  // Avoid driving into lava; if already standing in it, leave via the clear side
+  if (hazards) {
+    const ahead = hazards.isLava(
+      self.x + Math.cos(self.angle) * 90,
+      self.y + Math.sin(self.angle) * 90
+    );
+    const inLava = hazards.isLava(self.x, self.y);
+    if (!inLava && ahead && thrust) {
+      return { thrust: false, wantShoot, wantFlip: rng() < profile.flipChance };
+    }
+    if (inLava) {
+      return { thrust: !ahead, wantShoot, wantFlip: ahead && rng() < 0.2 };
+    }
+  }
 
   return { thrust, wantShoot, wantFlip };
 }

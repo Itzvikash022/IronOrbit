@@ -7,7 +7,7 @@ import { PauseModal } from './components/PauseModal';
 import { RoomLobby } from './components/RoomLobby';
 import { SettingsModal } from './components/SettingsModal';
 import { TitleScreen } from './components/TitleScreen';
-import { ArenaScene } from './game/ArenaScene';
+import { ArenaScene, type ArenaEnvStatus } from './game/ArenaScene';
 import { networkClient } from './network/NetworkClient';
 import { DEFAULT_ACTION_BIND, sanitizeActionBind } from './shared/actionBind';
 import { DEFAULT_GAME_SETTINGS } from './shared/config';
@@ -81,6 +81,8 @@ export default function App() {
   const [disconnectNotice, setDisconnectNotice] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [pingMs, setPingMs] = useState<number | null>(null);
+  const [versionMismatch, setVersionMismatch] = useState(false);
+  const [envStatus, setEnvStatus] = useState<ArenaEnvStatus | null>(null);
 
   const [preferences, setPreferences] = useState<ClientPreferences>(() => loadPreferences());
   const [customSettings, setCustomSettings] = useState<GameSettings>({
@@ -91,6 +93,7 @@ export default function App() {
   useEffect(() => {
     shellStateRef.current = shellState;
     document.body.dataset.state = shellState;
+    if (shellState !== 'playing' && shellState !== 'paused') setEnvStatus(null);
     sceneRef.current?.setInputEnabled(shellState === 'playing' && !showSettings);
     const shouldSleepCanvas = shellState === 'lobby' || shellState === 'gameover';
     sceneRef.current?.setAttractPaused(shouldSleepCanvas);
@@ -175,6 +178,7 @@ export default function App() {
     arenaScene.setBridge({
       onSendInput: (input) => networkClient.sendInput(input),
       onSendShoot: (aimAngle) => networkClient.sendShoot(aimAngle),
+      onEnvStatus: (status) => setEnvStatus(status),
     });
     arenaScene.setActionBind(preferences.actionBind);
 
@@ -193,6 +197,7 @@ export default function App() {
     phaserGameRef.current = game;
 
     networkClient.setListeners({
+      onVersionMismatch: () => setVersionMismatch(true),
       onConnectChange: (connected) => {
         if (!connected) {
           setPingMs(null);
@@ -534,6 +539,27 @@ export default function App() {
         className="fixed inset-0 z-0"
       />
 
+      {versionMismatch && (
+        <div
+          data-testid="version-mismatch"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0f14]/95 p-6"
+        >
+          <div className="max-w-sm w-full bg-[#111720] border border-amber-500/40 rounded-xl p-6 text-center space-y-4 shadow-2xl">
+            <h2 className="font-display font-bold text-xl text-slate-100">New version available</h2>
+            <p className="text-sm text-slate-400">
+              The game was updated. Refresh the page to keep playing with everyone else.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="w-full px-4 py-2.5 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold cursor-pointer"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      )}
+
       {shellState === 'title' && (
         <TitleScreen
           nickname={nickname}
@@ -556,6 +582,7 @@ export default function App() {
           onChangeMode={handleChangeMode}
           onChangeMap={handleChangeMap}
           onRerollMap={handleRerollMap}
+          onToggleBetaMaps={(enabled) => networkClient.updateRoomConfig({ includeBetaMaps: enabled })}
           onSwitchTeam={handleSwitchTeam}
           onPatchSettings={handlePatchRoomSettings}
           onSetBots={handleSetBots}
@@ -577,6 +604,7 @@ export default function App() {
           showLeaderboard={showLeaderboard && shellState === 'playing'}
           killFeed={killFeed}
           flagBanner={flagBanner}
+          envStatus={envStatus}
           disconnectNotice={
             reconnecting
               ? 'Connection interrupted — reconnecting to match...'

@@ -1,6 +1,12 @@
 import { ASSIST_WINDOW_MS, TANK_RADIUS } from '../src/shared/config.ts';
 import { hasPowerUp, selectSafeSpawn, stepProjectile } from '../src/shared/physics.ts';
-import { applyTankDamage, canTankFire, consumeAmmo } from '../src/shared/rules.ts';
+import { HAZARD_TUNING } from '../src/shared/hazards.ts';
+import {
+  applyEnvironmentDamage,
+  applyTankDamage,
+  canTankFire,
+  consumeAmmo,
+} from '../src/shared/rules.ts';
 import type {
   ArenaMap,
   GameMode,
@@ -72,26 +78,36 @@ export class CombatSystem {
     mode: GameMode,
     settings: GameSettings,
     nowMs: number,
-    callbacks: CombatEventCallbacks
+    callbacks: CombatEventCallbacks,
+    wind?: { ax: number; ay: number }
   ): void {
     for (let i = projectiles.length - 1; i >= 0; i--) {
       const proj = projectiles[i];
-      const stepRes = stepProjectile(proj, dt, map, tanks);
+      const stepRes = stepProjectile(proj, dt, map, tanks, wind);
 
       if (!stepRes.expired) continue;
 
       if (stepRes.hitTankId) {
         const victim = tanks.find((t) => t.id === stepRes.hitTankId);
         if (victim) {
-          const dmgRes = applyTankDamage(
-            victim,
-            proj.ownerId,
-            proj.team,
-            proj.damage,
-            proj.isDoubleDamage,
-            mode,
-            nowMs
-          );
+          const selfHit = victim.id === proj.ownerId;
+          const dmgRes = selfHit
+            ? applyEnvironmentDamage(
+                victim,
+                proj.damage *
+                  (proj.isDoubleDamage ? 2 : 1) *
+                  HAZARD_TUNING.windSelfDamageMul,
+                nowMs
+              )
+            : applyTankDamage(
+                victim,
+                proj.ownerId,
+                proj.team,
+                proj.damage,
+                proj.isDoubleDamage,
+                mode,
+                nowMs
+              );
 
           if (dmgRes.blockedReason === 'friendly') {
             // Friendly shells pass through teammates in CTF without detonating
@@ -99,7 +115,7 @@ export class CombatSystem {
           }
 
           if (dmgRes.appliedDamage > 0) {
-            this.recordDamage(victim.id, proj.ownerId, nowMs);
+            if (!selfHit) this.recordDamage(victim.id, proj.ownerId, nowMs);
             callbacks.onProjectileImpact(
               stepRes.impactX,
               stepRes.impactY,
@@ -122,8 +138,9 @@ export class CombatSystem {
             victim.activePowerUps = [];
             victim.vx = 0;
             victim.vy = 0;
+            victim.stunnedUntil = 0;
 
-            const killer = tanks.find((t) => t.id === proj.ownerId) ?? null;
+            const killer = selfHit ? null : (tanks.find((t) => t.id === proj.ownerId) ?? null);
             const assisters = this.consumeAssisters(victim.id, proj.ownerId, tanks, nowMs);
             callbacks.onTankKilled(victim, killer, assisters);
           }
@@ -134,6 +151,26 @@ export class CombatSystem {
 
       projectiles.splice(i, 1);
     }
+  }
+
+  /** Lava / other environment damage with the same elimination bookkeeping as shell hits. */
+  applyEnvironmentHit(
+    victim: TankEntity,
+    amount: number,
+    tanks: TankEntity[],
+    settings: GameSettings,
+    nowMs: number,
+    callbacks: CombatEventCallbacks
+  ): void {
+    const res = applyEnvironmentDamage(victim, amount, nowMs);
+    if (!res.eliminated) return;
+    victim.respawnAt = nowMs + settings.respawnDelayMs;
+    victim.activePowerUps = [];
+    victim.vx = 0;
+    victim.vy = 0;
+    victim.stunnedUntil = 0;
+    this.damageHistory.delete(victim.id);
+    callbacks.onTankKilled(victim, null, []);
   }
 
   stepRespawns(
@@ -168,6 +205,7 @@ export class CombatSystem {
         tank.ammoRegenProgress = 0;
         tank.activePowerUps = [];
         tank.alive = true;
+        tank.stunnedUntil = 0;
         tank.invincibleUntil = nowMs + settings.invincibilityDurationMs;
 
         callbacks.onTankRespawned(tank);

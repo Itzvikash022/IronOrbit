@@ -6,10 +6,23 @@ import type {
   MapId,
   PlayerInputState,
 } from '../src/shared/types.ts';
+import { PROTOCOL_VERSION } from '../src/shared/config.ts';
 import { RoomManager } from './RoomManager.ts';
 
 export function attachSocketServer(io: Server): RoomManager {
   const roomManager = new RoomManager(io);
+
+  // Refuse clients built against a different protocol (stale browser tab / stale deploy).
+  io.use((socket, next) => {
+    const version = Number(socket.handshake.auth?.protocolVersion);
+    if (version !== PROTOCOL_VERSION) {
+      const err = new Error('version_mismatch') as Error & { data?: unknown };
+      err.data = { serverVersion: PROTOCOL_VERSION, clientVersion: version || null };
+      next(err);
+      return;
+    }
+    next();
+  });
 
   io.on('connection', (socket: Socket) => {
     socket.on(
@@ -107,6 +120,7 @@ export function attachSocketServer(io: Server): RoomManager {
         mode?: GameMode;
         mapId?: MapId;
         rerollMap?: boolean;
+        includeBetaMaps?: boolean;
         settings?: Partial<GameSettings>;
       }) => {
         const ctx = roomManager.getRoomBySocket(socket.id);

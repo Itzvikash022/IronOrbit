@@ -1,10 +1,11 @@
-import type { ArenaMap, MapId } from './types.ts';
+import type { ArenaMap, BetaMapId, ClassicMapId, MapId } from './types.ts';
+import { BETA_MAPS } from './betaMaps.ts';
 
 /** Arena size tuned for wide displays (~2:1) so the map fills a typical browser window. */
 export const ARENA_WIDTH = 2880;
 export const ARENA_HEIGHT = 1440;
 
-export const ARENA_MAPS: Record<MapId, ArenaMap> = {
+const CLASSIC_MAPS: Record<ClassicMapId, ArenaMap> = {
   desert: {
     id: 'desert',
     name: 'Desert Arena',
@@ -484,9 +485,21 @@ export const ARENA_MAPS: Record<MapId, ArenaMap> = {
 
 };
 
-export const MAP_IDS: MapId[] = Object.keys(ARENA_MAPS) as MapId[];
+/** Classic maps get category/beta defaults; beta maps come from betaMaps.ts (scripts/gen-beta-maps.mjs). */
+for (const m of Object.values(CLASSIC_MAPS)) {
+  m.category = 'classic';
+  m.beta = false;
+}
 
-export function getRandomMapId(exclude?: MapId): MapId {
-  const pool = exclude ? MAP_IDS.filter((id) => id !== exclude) : MAP_IDS;
-  return pool[Math.floor(Math.random() * pool.length)];
+export const ARENA_MAPS: Record<MapId, ArenaMap> = { ...CLASSIC_MAPS, ...BETA_MAPS };
+
+export const CLASSIC_MAP_IDS = Object.keys(CLASSIC_MAPS) as ClassicMapId[];
+export const BETA_MAP_IDS = Object.keys(BETA_MAPS) as BetaMapId[];
+export const MAP_IDS: MapId[] = [...CLASSIC_MAP_IDS, ...BETA_MAP_IDS];
+
+export function getRandomMapId(exclude?: MapId, includeBeta = false): MapId {
+  const base: MapId[] = includeBeta ? MAP_IDS : CLASSIC_MAP_IDS;
+  const pool = exclude ? base.filter((id) => id !== exclude) : base;
+  const list = pool.length > 0 ? pool : base;
+  return list[Math.floor(Math.random() * list.length)];
 }

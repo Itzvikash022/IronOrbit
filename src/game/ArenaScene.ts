@@ -22,7 +22,9 @@ import {
   ProjectileEntity,
   SupplyCrateEntity,
   TankEntity,
+  isTeamMode,
 } from '../shared/types';
+import { HazardRenderer, type EnvStatus } from './HazardRenderer';
 import { MapRenderer } from './MapRenderer';
 import { ParticlePool } from './ObjectPool';
 import { TankSprite } from './TankSprite';
@@ -59,10 +61,19 @@ interface ClientProjectileVisual {
 export interface ArenaSceneBridge {
   onSendInput: (input: PlayerInputState) => void;
   onSendShoot: (aimAngle: number) => void;
+  /** Wind / stun status for the HUD; fired when it changes. */
+  onEnvStatus?: (status: ArenaEnvStatus) => void;
+}
+
+export interface ArenaEnvStatus extends EnvStatus {
+  stunMsLeft: number;
 }
 
 export class ArenaScene extends Phaser.Scene {
   private mapRenderer!: MapRenderer;
+  private hazards!: HazardRenderer;
+  private lastEnvKey = '';
+  private lastEnvSentAt = 0;
   private particles!: ParticlePool;
 
   private sceneMode: 'attract' | 'active' = 'attract';
@@ -138,7 +149,9 @@ export class ArenaScene extends Phaser.Scene {
   create(): void {
     generateGameTextures(this);
     this.mapRenderer = new MapRenderer(this);
+    this.hazards = new HazardRenderer(this);
     this.particles = new ParticlePool(this, 200);
+    this.hazards.onBombDetonated = (x, y, radius) => this.handleBombDetonated(x, y, radius);
 
     this.redFlagSprite = this.add.image(-999, -999, 'flag_red').setDepth(14).setVisible(false);
     this.blueFlagSprite = this.add.image(-999, -999, 'flag_blue').setDepth(14).setVisible(false);
@@ -333,6 +346,13 @@ export class ArenaScene extends Phaser.Scene {
       this.applyCameraZoom(map.width, map.height);
     }
 
+    this.hazards.ensure(
+      ARENA_MAPS[snapshot.mapId],
+      snapshot.matchSeed ?? 0,
+      snapshot.matchStartTime ?? 0,
+      snapshot.mode
+    );
+
     const nowPerf = performance.now();
     const activeIds = new Set<string>();
 
@@ -379,6 +399,7 @@ export class ArenaScene extends Phaser.Scene {
           this.localPredTank.maxAmmo = srvTank.maxAmmo;
           this.localPredTank.ammoRegenProgress = srvTank.ammoRegenProgress;
           this.localPredTank.invincibleUntil = srvTank.invincibleUntil;
+          this.localPredTank.stunnedUntil = srvTank.stunnedUntil;
           this.localPredTank.activePowerUps = srvTank.activePowerUps;
           this.localPredTank.carryingFlag = srvTank.carryingFlag;
           this.localPredTank.team = srvTank.team;
@@ -653,7 +674,8 @@ export class ArenaScene extends Phaser.Scene {
           simDt,
           map,
           this.settings,
-          serverNow
+          serverNow,
+          { surface: this.hazards.surfaceAt(this.localPredTank.x, this.localPredTank.y) }
         );
       }
 
@@ -679,6 +701,9 @@ export class ArenaScene extends Phaser.Scene {
         if (!entry) continue;
 
         if (srvTank.id === this.localPlayerId && this.localPredTank) {
+          entry.sprite.setConcealment(
+            this.hazards.inGrass(this.localPredTank.x, this.localPredTank.y) ? 'ghost' : 'none'
+          );
           entry.sprite.update(
             this.localPredTank.x,
             this.localPredTank.y,
@@ -694,9 +719,16 @@ export class ArenaScene extends Phaser.Scene {
           const iy = Phaser.Math.Linear(entry.prevY, entry.targetY, alpha);
           const angDiff = normalizeAngle(entry.targetAngle - entry.prevAngle);
           const ia = normalizeAngle(entry.prevAngle + angDiff * alpha);
+          entry.sprite.setConcealment(this.computeConcealment(srvTank, ix, iy, serverNow));
           entry.sprite.update(ix, iy, ia, ia, srvTank, serverNow, rawDt);
         }
       }
+    }
+
+    // 2b. Hazards (lava glow, wind streaks, bomb telegraph, turrets) + HUD status
+    if (this.latestSnapshot) {
+      this.hazards.update(serverNow, rawDt, this.latestSnapshot.turrets ?? [], nowPerf);
+      this.pushEnvStatus(nowPerf, serverNow);
     }
 
     // 3. Extrapolate projectiles smoothly between snapshots
@@ -735,6 +767,58 @@ export class ArenaScene extends Phaser.Scene {
     // 6. Ambient biome effects (if high quality)
     this.updateAmbientBiome(rawDt, map.palette.ambientEffect, map.width, map.height);
     this.particles.update(rawDt);
+  }
+
+  private computeConcealment(
+    tank: TankEntity,
+    x: number,
+    y: number,
+    serverNow: number
+  ): 'none' | 'ghost' | 'hidden' {
+    if (!this.hazards.hasGrass() || !this.hazards.inGrass(x, y)) return 'none';
+    const me = this.localPredTank;
+    // Spectating (dead) reveals everyone
+    if (!me || !me.alive) return 'none';
+    if (isTeamMode(this.activeGameMode) && tank.team === me.team) return 'ghost';
+    // Firing or standing right next to you gives a tank away
+    if (serverNow - tank.lastShotAt < 900) return 'ghost';
+    if (Math.hypot(x - me.x, y - me.y) < 110) return 'ghost';
+    return 'hidden';
+  }
+
+  private handleBombDetonated(x: number, y: number, radius: number): void {
+    this.particles.emitBurst(x, y, 26, {
+      texture: 'particle_spark',
+      tint: 0xfde047,
+      minSpeed: 90,
+      maxSpeed: 340,
+      life: 0.5,
+      startScale: 1.3,
+    });
+    this.particles.emitBurst(x, y, 12, {
+      texture: 'particle_smoke',
+      minSpeed: 30,
+      maxSpeed: 140,
+      life: 0.8,
+      startScale: 1.5,
+      depth: 23,
+    });
+    const me = this.localPredTank;
+    if (me && Math.hypot(me.x - x, me.y - y) <= radius * 1.4) {
+      this.shakeTrauma = Math.min(1, this.shakeTrauma + 0.5);
+    }
+  }
+
+  private pushEnvStatus(nowPerf: number, serverNow: number): void {
+    if (!this.bridge?.onEnvStatus) return;
+    const status = this.hazards.getStatus();
+    const stunnedUntil = this.localPredTank?.stunnedUntil ?? 0;
+    const stunMsLeft = Math.max(0, Math.round(stunnedUntil - serverNow));
+    const key = `::`;
+    if (key === this.lastEnvKey && nowPerf - this.lastEnvSentAt < 500) return;
+    this.lastEnvKey = key;
+    this.lastEnvSentAt = nowPerf;
+    this.bridge.onEnvStatus({ ...status, stunMsLeft });
   }
 
   private updateAttract(dt: number): void {
@@ -811,6 +895,8 @@ export class ArenaScene extends Phaser.Scene {
 
     this.localPredTank = null;
     this.latestSnapshot = null;
+    this.hazards?.clear();
+    this.lastEnvKey = '';
     this.localFlipState = { pendingClicks: 0, lastClickAt: 0 };
     this.redFlagSprite?.setVisible(false);
     this.blueFlagSprite?.setVisible(false);

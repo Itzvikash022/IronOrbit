@@ -5,6 +5,7 @@ import {
   sanitizeGameSettings,
   TANK_SKINS,
 } from '../src/shared/config.ts';
+import { newMatchSeed } from '../src/shared/hazards.ts';
 import { ARENA_MAPS, getRandomMapId } from '../src/shared/maps.ts';
 import {
   hasPowerUp,
@@ -42,6 +43,7 @@ import { decideBotAction } from './BotAI.ts';
 import type { CombatEventCallbacks } from './CombatSystem.ts';
 import { CombatSystem } from './CombatSystem.ts';
 import { createGameModeHandler } from './GameModeManager.ts';
+import { HazardSystem } from './HazardSystem.ts';
 import type { GameModeHandler } from './GameModeManager.ts';
 import { PowerUpManager } from './PowerUpManager.ts';
 
@@ -78,6 +80,9 @@ export class GameRoom {
   private modeHandler: GameModeHandler;
   private combat = new CombatSystem();
   private powerUps = new PowerUpManager();
+  private hazards = new HazardSystem();
+  private matchSeed = 1;
+  includeBetaMaps = false;
 
   private tanks: TankEntity[] = [];
   private projectiles: ProjectileEntity[] = [];
@@ -424,10 +429,15 @@ export class GameRoom {
       mode?: GameMode;
       mapId?: MapId;
       rerollMap?: boolean;
+      includeBetaMaps?: boolean;
       settings?: Partial<GameSettings>;
     }
   ): void {
     if (requesterId !== this.hostId) return;
+
+    if (typeof payload.includeBetaMaps === 'boolean') {
+      this.includeBetaMaps = payload.includeBetaMaps;
+    }
 
     if (payload.mode && payload.mode !== this.mode) {
       const nextMode = payload.mode;
@@ -460,7 +470,7 @@ export class GameRoom {
     }
 
     if (payload.rerollMap) {
-      this.mapId = getRandomMapId(this.mapId);
+      this.mapId = getRandomMapId(this.mapId, this.includeBetaMaps);
     } else if (payload.mapId && ARENA_MAPS[payload.mapId]) {
       this.mapId = payload.mapId;
     }
@@ -483,11 +493,13 @@ export class GameRoom {
   startMatch(requesterId: string, randomizeMap = false): void {
     if (requesterId !== this.hostId) return;
     if (randomizeMap) {
-      this.mapId = getRandomMapId();
+      this.mapId = getRandomMapId(undefined, this.includeBetaMaps);
     }
 
     const nowMs = Date.now();
     const map = ARENA_MAPS[this.mapId];
+    this.matchSeed = newMatchSeed();
+    this.hazards.reset(map, this.matchSeed, nowMs);
     this.status = 'playing';
     this.lastMatchResult = null;
     this.matchStartTime = nowMs;
@@ -558,7 +570,7 @@ export class GameRoom {
     this.projectiles = [];
     this.crates = [];
     this.tanks = [];
-    this.mapId = getRandomMapId();
+    this.mapId = getRandomMapId(undefined, this.includeBetaMaps);
     this.broadcastRoomInfo();
     this.io.to(this.code).emit('room:returnedToLobby', this.getRoomInfo());
   }
@@ -613,6 +625,7 @@ export class GameRoom {
       players,
       settings: this.settings,
       botDifficulty: this.botDifficulty,
+      includeBetaMaps: this.includeBetaMaps,
     };
   }
 
@@ -718,7 +731,9 @@ export class GameRoom {
         tank,
         this.tanks,
         this.mode,
-        this.botDifficulty
+        this.botDifficulty,
+        Math.random,
+        { isLava: (x, y) => this.hazards.surfaceAt(x, y) === 'lava' }
       );
       session.input = {
         seq: session.input.seq + 1,
@@ -804,7 +819,9 @@ export class GameRoom {
 
       tank.lastProcessedSeq = session.input.seq;
       stepRotationFlip(tank, session.flipState, nowMs, this.settings);
-      stepTankMotion(tank, session.input.thrust, dt, map, this.settings, nowMs);
+      stepTankMotion(tank, session.input.thrust, dt, map, this.settings, nowMs, {
+        surface: this.hazards.surfaceAt(tank.x, tank.y),
+      });
       tank.aimAngle = tank.angle;
 
       const refilled = tickAmmoRegen(tank, dt, this.settings);
@@ -832,7 +849,22 @@ export class GameRoom {
       }
     }
 
-    // 2. Step projectiles and resolve hits
+    // 1b. Environment hazards: lava burns, stun bombs, wall turrets
+    this.hazards.tick(nowMs, dt, this.tanks, this.projectiles, this.mode, this.settings, {
+      onTurretShot: (proj, turret) => {
+        this.io.to(this.code).emit('shot:fired', {
+          projectile: proj,
+          shooterId: turret.id,
+          aimAngle: turret.angle,
+        });
+      },
+      onEnvironmentDamage: (victim, amount, at) => {
+        this.combat.applyEnvironmentHit(victim, amount, this.tanks, this.settings, at, combatCallbacks);
+      },
+      onBombDetonated: () => {},
+    });
+
+    // 2. Step projectiles and resolve hits (wind bends every shell)
     this.combat.stepProjectiles(
       dt,
       this.projectiles,
@@ -841,7 +873,8 @@ export class GameRoom {
       this.mode,
       this.settings,
       nowMs,
-      combatCallbacks
+      combatCallbacks,
+      this.hazards.windAccelAt(nowMs)
     );
 
     // 3. Step respawns
@@ -912,6 +945,9 @@ export class GameRoom {
     return {
       serverTime: nowMs,
       timeRemainingSec,
+      matchSeed: this.matchSeed,
+      matchStartTime: this.matchStartTime,
+      turrets: this.hazards.getTurretEntities(),
       mode: this.mode,
       mapId: this.mapId,
       tanks: this.tanks,

@@ -1,5 +1,11 @@
 import type { GameSettings, PowerUpType } from './types.ts';
 
+/**
+ * Bump whenever client/server wire format or shared simulation changes in a way that makes
+ * old and new builds desync. Mismatched clients are refused with a refresh prompt.
+ */
+export const PROTOCOL_VERSION = 2;
+
 export const TANK_RADIUS = 20;
 export const PROJECTILE_RADIUS = 8;
 export const CRATE_RADIUS = 18;

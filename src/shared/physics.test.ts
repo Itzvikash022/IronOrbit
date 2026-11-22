@@ -50,8 +50,8 @@ function makeTank(overrides: Partial<TankEntity> = {}): TankEntity {
   };
 }
 
-test('all 7 arena maps have non-overlapping spawns, bases, and crate zones', () => {
-  assert.equal(MAP_IDS.length, 7);
+test('all 14 arena maps have non-overlapping spawns, bases, and crate zones', () => {
+  assert.equal(MAP_IDS.length, 14);
   for (const id of MAP_IDS) {
     const map = ARENA_MAPS[id];
     for (const sp of [...map.ffaSpawns, ...map.redSpawns, ...map.blueSpawns]) {

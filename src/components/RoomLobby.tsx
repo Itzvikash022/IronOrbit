@@ -15,7 +15,7 @@ import {
   Wifi,
   Bot,
 } from 'lucide-react';
-import { ARENA_MAPS, MAP_IDS } from '../shared/maps';
+import { ARENA_MAPS, BETA_MAP_IDS, CLASSIC_MAP_IDS } from '../shared/maps';
 import {
   BOT_DIFFICULTIES,
   BotDifficulty,
@@ -36,12 +36,34 @@ interface RoomLobbyProps {
   onChangeMode: (mode: GameMode) => void;
   onChangeMap: (mapId: MapId) => void;
   onRerollMap: () => void;
+  onToggleBetaMaps: (enabled: boolean) => void;
   onSwitchTeam: (team: 'red' | 'blue') => void;
   onPatchSettings: (patch: Partial<GameSettings>) => void;
   onSetBots: (count: number, difficulty: BotDifficulty) => void;
   onOpenSettings: () => void;
   disconnectNotice: string | null;
   botsError?: string | null;
+}
+
+function mapMechanicsHint(id: MapId): string {
+  switch (id) {
+    case 'dunes':
+      return 'Sand patches slow your tank to a crawl. Patches move every match.';
+    case 'glacier':
+      return 'Ice sheets make you skid. Patches move every match.';
+    case 'magma':
+      return 'Lava pools burn anything that sits in them. Pools move every match.';
+    case 'storm':
+      return 'Wind gusts bend shells - even back toward you.';
+    case 'sentinel':
+      return 'Wall turrets fire on enemies (everyone in FFA / Team DM; only the other team in CTF).';
+    case 'overgrowth':
+      return 'Tall grass hides tanks until they shoot or get close.';
+    case 'blastyard':
+      return 'Random stun bombs - watch the red warning rings.';
+    default:
+      return '';
+  }
 }
 
 export const RoomLobby: React.FC<RoomLobbyProps> = ({
@@ -53,6 +75,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
   onChangeMode,
   onChangeMap,
   onRerollMap,
+  onToggleBetaMaps,
   onSwitchTeam,
   onPatchSettings,
   onSetBots,
@@ -67,6 +90,9 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
   const botDifficulty = room.botDifficulty ?? 'player';
   const isHost = room.hostId === localPlayerId;
   const currentMap = ARENA_MAPS[room.mapId];
+  const includeBeta = Boolean(room.includeBetaMaps);
+  const terrainIds = BETA_MAP_IDS.filter((id) => ARENA_MAPS[id].category === 'terrain');
+  const obstacleIds = BETA_MAP_IDS.filter((id) => ARENA_MAPS[id].category === 'obstacle');
   const localPlayer = room.players.find((p) => p.id === localPlayerId);
 
   const handleCopyCode = () => {
@@ -366,14 +392,30 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                   }}
                 />
                 <div className="min-w-0">
-                  <div className="font-display font-bold text-lg text-slate-100 truncate">
-                    {currentMap.name}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="font-display font-bold text-lg text-slate-100 truncate">
+                      {currentMap.name}
+                    </div>
+                    {currentMap.beta && (
+                      <span
+                        data-testid="map-beta-badge"
+                        className="shrink-0 px-1.5 py-0.5 rounded bg-fuchsia-500/20 border border-fuchsia-400/50 text-[10px] font-bold uppercase tracking-wider text-fuchsia-300"
+                      >
+                        Beta
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-slate-400 line-clamp-2">
                     {currentMap.subtitle}
                   </div>
                 </div>
               </div>
+
+              {currentMap.beta && (
+                <p className="text-[11px] text-fuchsia-300/80 leading-snug mb-1">
+                  {mapMechanicsHint(currentMap.id)}
+                </p>
+              )}
 
               {isHost && (
                 <div className="mt-3">
@@ -386,14 +428,45 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                     onChange={(e) => onChangeMap(e.target.value as MapId)}
                     className="w-full px-3 py-2 rounded-md bg-[#111720] border border-slate-700 text-xs font-medium text-slate-200 focus:outline-none focus:border-amber-500"
                   >
-                    {MAP_IDS.map((id) => (
-                      <option key={id} value={id}>
-                        {ARENA_MAPS[id].name}
-                      </option>
-                    ))}
+                    <optgroup label="Classic backgrounds">
+                      {CLASSIC_MAP_IDS.map((id) => (
+                        <option key={id} value={id}>
+                          {ARENA_MAPS[id].name}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Terrain themes (Beta)">
+                      {terrainIds.map((id) => (
+                        <option key={id} value={id}>
+                          {ARENA_MAPS[id].name} - Beta
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Obstacle themes (Beta)">
+                      {obstacleIds.map((id) => (
+                        <option key={id} value={id}>
+                          {ARENA_MAPS[id].name} - Beta
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
               )}
+
+              <label
+                htmlFor="lobby-include-beta"
+                className={`mt-3 flex items-center gap-2 text-[11px] text-slate-400 `}
+              >
+                <input
+                  id="lobby-include-beta"
+                  type="checkbox"
+                  checked={includeBeta}
+                  disabled={!isHost}
+                  onChange={(e) => onToggleBetaMaps(e.target.checked)}
+                  className="accent-fuchsia-500"
+                />
+                <span>Include beta maps when randomizing</span>
+              </label>
             </div>
 
             {/* Bots */}

@@ -15,6 +15,8 @@ export class TankSprite {
   private recoilOffset = 0;
   private hitFlashUntil = 0;
   private lastSkinKey = '';
+  private stunGfx: Phaser.GameObjects.Graphics;
+  private concealment: 'none' | 'ghost' | 'hidden' = 'none';
 
   constructor(
     private scene: Phaser.Scene,
@@ -38,7 +40,9 @@ export class TankSprite {
     this.flagBadge.setScale(0.65);
     this.flagBadge.setVisible(false);
 
-    this.container.add([this.hull, this.turret, this.shieldRing, this.flagBadge]);
+    this.stunGfx = scene.add.graphics();
+    this.stunGfx.setVisible(false);
+    this.container.add([this.hull, this.turret, this.shieldRing, this.flagBadge, this.stunGfx]);
 
     // Non-rotating overhead HUD (HP bar + nickname)
     this.uiLayer = scene.add.container(tank.x, tank.y - 34);
@@ -76,6 +80,11 @@ export class TankSprite {
     if (tank.team === 'red') return 'red';
     if (tank.team === 'blue') return 'blue';
     return String(tank.skinIndex % 7);
+  }
+
+  /** Grass concealment: hidden (enemies can't see), ghost (you / allies see a faded tank). */
+  setConcealment(mode: 'none' | 'ghost' | 'hidden'): void {
+    this.concealment = mode;
   }
 
   triggerRecoil(): void {
@@ -138,6 +147,37 @@ export class TankSprite {
     } else {
       this.shieldRing.setVisible(false);
       this.container.setAlpha(1);
+    }
+
+    // Stun: dizzy sparks orbit the hull
+    if ((tank.stunnedUntil ?? 0) > nowMs) {
+      this.stunGfx.setVisible(true);
+      this.stunGfx.clear();
+      const spin = nowMs * 0.012;
+      for (let i = 0; i < 4; i++) {
+        const a = spin + (i * Math.PI) / 2;
+        const px = Math.cos(a) * 26;
+        const py = Math.sin(a) * 26;
+        this.stunGfx.fillStyle(0xfde047, 1);
+        this.stunGfx.fillCircle(px, py, 3.2);
+        this.stunGfx.fillStyle(0xffffff, 0.9);
+        this.stunGfx.fillCircle(px, py, 1.4);
+      }
+      this.stunGfx.lineStyle(2, 0xfde047, 0.45);
+      this.stunGfx.strokeCircle(0, 0, 26);
+    } else if (this.stunGfx.visible) {
+      this.stunGfx.setVisible(false);
+      this.stunGfx.clear();
+    }
+
+    // Grass concealment
+    if (this.concealment === 'hidden') {
+      this.container.setVisible(false);
+      this.uiLayer.setVisible(false);
+      return;
+    }
+    if (this.concealment === 'ghost') {
+      this.container.setAlpha(Math.min(this.container.alpha, 0.5));
     }
 
     // Hit flash

@@ -513,11 +513,11 @@ function fmtPts(pts) {
   return pts.map((p) => `      { x: ${p.x}, y: ${p.y} },`).join('\n');
 }
 
-let out = `import type { ArenaMap, MapId } from './types.ts';\n\n`;
+let out = `import type { ArenaMap, BetaMapId, ClassicMapId, MapId } from './types.ts';\nimport { BETA_MAPS } from './betaMaps.ts';\n\n`;
 out += `/** Arena size tuned for wide displays (~2:1) so the map fills a typical browser window. */\n`;
 out += `export const ARENA_WIDTH = ${NEW_W};\n`;
 out += `export const ARENA_HEIGHT = ${H};\n\n`;
-out += `export const ARENA_MAPS: Record<MapId, ArenaMap> = {\n`;
+out += `const CLASSIC_MAPS: Record<ClassicMapId, ArenaMap> = {\n`;
 
 for (const [id, m] of Object.entries(raw)) {
   // Extras are authored in NEW map coordinates already (side lanes).
@@ -555,10 +555,20 @@ for (const [id, m] of Object.entries(raw)) {
 }
 
 out += `};\n\n`;
-out += `export const MAP_IDS: MapId[] = Object.keys(ARENA_MAPS) as MapId[];\n\n`;
-out += `export function getRandomMapId(exclude?: MapId): MapId {\n`;
-out += `  const pool = exclude ? MAP_IDS.filter((id) => id !== exclude) : MAP_IDS;\n`;
-out += `  return pool[Math.floor(Math.random() * pool.length)];\n`;
+out += `/** Classic maps get category/beta defaults; beta maps come from betaMaps.ts (scripts/gen-beta-maps.mjs). */\n`;
+out += `for (const m of Object.values(CLASSIC_MAPS)) {\n`;
+out += `  m.category = 'classic';\n`;
+out += `  m.beta = false;\n`;
+out += `}\n\n`;
+out += `export const ARENA_MAPS: Record<MapId, ArenaMap> = { ...CLASSIC_MAPS, ...BETA_MAPS };\n\n`;
+out += `export const CLASSIC_MAP_IDS = Object.keys(CLASSIC_MAPS) as ClassicMapId[];\n`;
+out += `export const BETA_MAP_IDS = Object.keys(BETA_MAPS) as BetaMapId[];\n`;
+out += `export const MAP_IDS: MapId[] = [...CLASSIC_MAP_IDS, ...BETA_MAP_IDS];\n\n`;
+out += `export function getRandomMapId(exclude?: MapId, includeBeta = false): MapId {\n`;
+out += `  const base: MapId[] = includeBeta ? MAP_IDS : CLASSIC_MAP_IDS;\n`;
+out += `  const pool = exclude ? base.filter((id) => id !== exclude) : base;\n`;
+out += `  const list = pool.length > 0 ? pool : base;\n`;
+out += `  return list[Math.floor(Math.random() * list.length)];\n`;
 out += `}\n`;
 
 fs.writeFileSync('src/shared/maps.ts', out);
