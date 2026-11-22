@@ -8,6 +8,7 @@ import type {
   ProjectileEntity,
   TankEntity,
 } from '../src/shared/types.ts';
+import { isTeamMode } from '../src/shared/types.ts';
 
 export interface CombatEventCallbacks {
   onShotFired: (proj: ProjectileEntity, shooter: TankEntity) => void;
@@ -146,15 +147,14 @@ export class CombatSystem {
     for (const tank of tanks) {
       if (tank.alive || !tank.connected) continue;
       if (nowMs >= tank.respawnAt) {
-        const spawns =
-          mode === 'ctf'
-            ? tank.team === 'red'
-              ? map.redSpawns
-              : map.blueSpawns
-            : map.ffaSpawns;
+        const spawns = isTeamMode(mode)
+          ? tank.team === 'red'
+            ? map.redSpawns
+            : map.blueSpawns
+          : map.ffaSpawns;
         const enemies = tanks.filter((other) => {
           if (other.id === tank.id) return false;
-          if (mode === 'ctf' && other.team === tank.team) return false;
+          if (isTeamMode(mode) && other.team === tank.team) return false;
           return true;
         });
 

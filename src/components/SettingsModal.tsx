@@ -155,7 +155,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-[#0b0f14] border border-slate-800 rounded-lg p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-200">Deathmatch Win Rule</span>
+                  <span className="font-semibold text-slate-200">Deathmatch / Team DM Win Rule</span>
                   <div className="flex gap-1">
                     <button
                       type="button"

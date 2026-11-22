@@ -1,7 +1,7 @@
 import type { GameSettings, PowerUpType } from './types.ts';
 
 export const TANK_RADIUS = 20;
-export const PROJECTILE_RADIUS = 5;
+export const PROJECTILE_RADIUS = 8;
 export const CRATE_RADIUS = 18;
 export const FLAG_PICKUP_RADIUS = 28;
 export const RAPID_FIRE_MULTIPLIER = 0.42;

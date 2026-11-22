@@ -35,6 +35,7 @@ import type {
   TankEntity,
   TeamId,
 } from '../src/shared/types.ts';
+import { isTeamMode } from '../src/shared/types.ts';
 import type { CombatEventCallbacks } from './CombatSystem.ts';
 import { CombatSystem } from './CombatSystem.ts';
 import { createGameModeHandler } from './GameModeManager.ts';
@@ -208,12 +209,11 @@ export class GameRoom {
       }
     }
 
-    const team: TeamId =
-      this.mode === 'ctf'
-        ? this.modeHandler.assignTeam(
-            Array.from(this.sessions.values()).map((s) => ({ team: s.team }) as TankEntity)
-          )
-        : 'none';
+    const team: TeamId = isTeamMode(this.mode)
+      ? this.modeHandler.assignTeam(
+          Array.from(this.sessions.values()).map((s) => ({ team: s.team }) as TankEntity)
+        )
+      : 'none';
 
     const session: PlayerSession = {
       playerId,
@@ -334,7 +334,7 @@ export class GameRoom {
     if (payload.mode && payload.mode !== this.mode) {
       this.mode = payload.mode;
       this.modeHandler = createGameModeHandler(this.mode);
-      if (this.mode === 'deathmatch') {
+      if (!isTeamMode(this.mode)) {
         for (const s of this.sessions.values()) s.team = 'none';
       } else {
         // Rebalance teams
@@ -359,7 +359,7 @@ export class GameRoom {
   }
 
   switchTeam(playerId: string, team: 'red' | 'blue'): void {
-    if (this.mode !== 'ctf' || this.status !== 'lobby') return;
+    if (!isTeamMode(this.mode) || this.status !== 'lobby') return;
     const session = this.sessions.get(playerId);
     if (!session) return;
     session.team = team;
@@ -405,8 +405,8 @@ export class GameRoom {
       },
     };
 
-    // Ensure balanced teams in CTF
-    if (this.mode === 'ctf') {
+    // Ensure balanced teams in CTF / Team Deathmatch
+    if (isTeamMode(this.mode)) {
       const list = Array.from(this.sessions.values());
       const needsAssign = list.some((s) => s.team !== 'red' && s.team !== 'blue');
       if (needsAssign) {
@@ -515,15 +515,14 @@ export class GameRoom {
 
   private createTankForSession(session: PlayerSession, nowMs: number): TankEntity {
     const map = ARENA_MAPS[this.mapId];
-    const spawns =
-      this.mode === 'ctf'
-        ? session.team === 'red'
-          ? map.redSpawns
-          : map.blueSpawns
-        : map.ffaSpawns;
+    const spawns = isTeamMode(this.mode)
+      ? session.team === 'red'
+        ? map.redSpawns
+        : map.blueSpawns
+      : map.ffaSpawns;
 
     const enemies = this.tanks.filter((t) => {
-      if (this.mode === 'ctf' && t.team === session.team) return false;
+      if (isTeamMode(this.mode) && t.team === session.team) return false;
       return true;
     });
     const pos = selectSafeSpawn(spawns, enemies, map.obstacles);

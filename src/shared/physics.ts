@@ -113,6 +113,7 @@ export function hasPowerUp(
   return tank.activePowerUps.some((p) => p.type === type && p.expiresAt > nowMs);
 }
 
+/** Fit the entire arena inside the viewport (100% map visible). */
 export function computeArenaCameraZoom(
   viewportW: number,
   viewportH: number,
@@ -121,13 +122,8 @@ export function computeArenaCameraZoom(
 ): number {
   const vw = Math.max(320, viewportW);
   const vh = Math.max(240, viewportH);
-  const targetAreaRatio = 0.75;
-  const rawZoom = Math.sqrt((vw * vh) / (mapW * mapH * targetAreaRatio));
-  const minZoomNoVoid = Math.max(vw / mapW, vh / mapH);
-  if (minZoomNoVoid <= 0.92) {
-    return clamp(rawZoom, Math.max(0.55, minZoomNoVoid), 0.92);
-  }
-  return clamp(rawZoom, 0.85, 1.0);
+  if (mapW <= 0 || mapH <= 0) return 1;
+  return Math.min(vw / mapW, vh / mapH);
 }
 
 export interface RotationFlipState {

@@ -8,13 +8,20 @@ import {
   Settings,
   Shield,
   Swords,
+  Users,
   Crown,
   Target,
   Clock,
   Wifi,
 } from 'lucide-react';
 import { ARENA_MAPS, MAP_IDS } from '../shared/maps';
-import { GameMode, GameSettings, MapId, RoomInfo } from '../shared/types';
+import {
+  GameMode,
+  GameSettings,
+  MapId,
+  RoomInfo,
+  isTeamMode,
+} from '../shared/types';
 
 interface RoomLobbyProps {
   room: RoomInfo;
@@ -143,48 +150,67 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
               <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
                 Game Mode
               </span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   disabled={!isHost}
                   onClick={() => onChangeMode('deathmatch')}
-                  className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-semibold transition-colors ${
+                  className={`flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg border text-xs sm:text-sm font-semibold transition-colors ${
                     room.mode === 'deathmatch'
                       ? 'bg-amber-500/15 border-amber-500 text-amber-300'
                       : 'bg-[#0b0f14] border-slate-800 text-slate-400 hover:text-slate-200'
                   } ${isHost ? 'cursor-pointer' : 'cursor-default opacity-90'}`}
                 >
-                  <Swords className="w-4 h-4" />
-                  <span>Deathmatch</span>
+                  <Swords className="w-4 h-4 shrink-0" />
+                  <span>FFA</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!isHost}
+                  onClick={() => onChangeMode('tdm')}
+                  className={`flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg border text-xs sm:text-sm font-semibold transition-colors ${
+                    room.mode === 'tdm'
+                      ? 'bg-violet-500/15 border-violet-500 text-violet-300'
+                      : 'bg-[#0b0f14] border-slate-800 text-slate-400 hover:text-slate-200'
+                  } ${isHost ? 'cursor-pointer' : 'cursor-default opacity-90'}`}
+                >
+                  <Users className="w-4 h-4 shrink-0" />
+                  <span>Team DM</span>
                 </button>
                 <button
                   type="button"
                   disabled={!isHost}
                   onClick={() => onChangeMode('ctf')}
-                  className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-semibold transition-colors ${
+                  className={`flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg border text-xs sm:text-sm font-semibold transition-colors ${
                     room.mode === 'ctf'
                       ? 'bg-sky-500/15 border-sky-500 text-sky-300'
                       : 'bg-[#0b0f14] border-slate-800 text-slate-400 hover:text-slate-200'
                   } ${isHost ? 'cursor-pointer' : 'cursor-default opacity-90'}`}
                 >
-                  <Shield className="w-4 h-4" />
-                  <span>Capture Flag</span>
+                  <Shield className="w-4 h-4 shrink-0" />
+                  <span>CTF</span>
                 </button>
               </div>
 
               {/* Sub-mode: Milestone vs Timed */}
               {(() => {
-                const isDm = room.mode === 'deathmatch';
-                const activeWinMode = isDm
+                const usesKillTarget =
+                  room.mode === 'deathmatch' || room.mode === 'tdm';
+                const activeWinMode = usesKillTarget
                   ? room.settings.dmWinMode
                   : room.settings.ctfWinMode;
-                const activeTarget = isDm
+                const activeTarget = usesKillTarget
                   ? room.settings.killTarget
                   : room.settings.flagTarget;
-                const unitLabel = isDm ? 'Kills' : 'Flags';
-                const minTarget = isDm ? 3 : 1;
-                const maxTarget = isDm ? 50 : 15;
-                const stepTarget = isDm ? 1 : 1;
+                const unitLabel =
+                  room.mode === 'ctf'
+                    ? 'Flags'
+                    : room.mode === 'tdm'
+                      ? 'Team Kills'
+                      : 'Kills';
+                const minTarget = usesKillTarget ? 3 : 1;
+                const maxTarget = usesKillTarget ? 50 : 15;
+                const stepTarget = 1;
 
                 return (
                   <div className="mt-2.5 bg-[#0b0f14] border border-slate-800 rounded-lg p-2.5 space-y-2">
@@ -194,7 +220,9 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                         disabled={!isHost}
                         onClick={() =>
                           onPatchSettings(
-                            isDm ? { dmWinMode: 'milestone' } : { ctfWinMode: 'milestone' }
+                            usesKillTarget
+                              ? { dmWinMode: 'milestone' }
+                              : { ctfWinMode: 'milestone' }
                           )
                         }
                         className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold border transition-colors ${
@@ -213,7 +241,9 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                         disabled={!isHost}
                         onClick={() =>
                           onPatchSettings(
-                            isDm ? { dmWinMode: 'timed' } : { ctfWinMode: 'timed' }
+                            usesKillTarget
+                              ? { dmWinMode: 'timed' }
+                              : { ctfWinMode: 'timed' }
                           )
                         }
                         className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold border transition-colors ${
@@ -230,7 +260,11 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                     {isHost && activeWinMode === 'milestone' && (
                       <div className="flex items-center justify-between text-xs px-1">
                         <span className="text-slate-400">
-                          {isDm ? 'Kill Milestone Target' : 'Flag Capture Target'}
+                          {usesKillTarget
+                            ? room.mode === 'tdm'
+                              ? 'Team Kill Target'
+                              : 'Kill Milestone Target'
+                            : 'Flag Capture Target'}
                         </span>
                         <div className="flex items-center gap-1.5">
                           <button
@@ -239,15 +273,17 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                             onClick={() => {
                               const next = Math.max(minTarget, activeTarget - stepTarget);
                               onPatchSettings(
-                                isDm ? { killTarget: next } : { flagTarget: next }
+                                usesKillTarget
+                                  ? { killTarget: next }
+                                  : { flagTarget: next }
                               );
                             }}
                             className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold cursor-pointer"
                           >
                             -
                           </button>
-                          <span className="w-14 text-center font-mono-num font-bold text-slate-100">
-                            {activeTarget} {unitLabel}
+                          <span className="w-20 text-center font-mono-num font-bold text-slate-100">
+                            {activeTarget}
                           </span>
                           <button
                             type="button"
@@ -255,7 +291,9 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                             onClick={() => {
                               const next = Math.min(maxTarget, activeTarget + stepTarget);
                               onPatchSettings(
-                                isDm ? { killTarget: next } : { flagTarget: next }
+                                usesKillTarget
+                                  ? { killTarget: next }
+                                  : { flagTarget: next }
                               );
                             }}
                             className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold cursor-pointer"
@@ -335,12 +373,14 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
               <div className="flex justify-between text-slate-300">
                 <span>Win Condition</span>
                 <span className="font-mono-num text-emerald-400 font-semibold">
-                  {room.mode === 'deathmatch'
-                    ? room.settings.dmWinMode === 'milestone'
-                      ? `First to ${room.settings.killTarget} Kills`
-                      : `Timed (${Math.round(room.settings.matchDurationSec / 60)} min)`
-                    : room.settings.ctfWinMode === 'milestone'
+                  {room.mode === 'ctf'
+                    ? room.settings.ctfWinMode === 'milestone'
                       ? `First to ${room.settings.flagTarget} Flags`
+                      : `Timed (${Math.round(room.settings.matchDurationSec / 60)} min)`
+                    : room.settings.dmWinMode === 'milestone'
+                      ? room.mode === 'tdm'
+                        ? `First to ${room.settings.killTarget} Team Kills`
+                        : `First to ${room.settings.killTarget} Kills`
                       : `Timed (${Math.round(room.settings.matchDurationSec / 60)} min)`}
                 </span>
               </div>
@@ -377,7 +417,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
               <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                 Pilots in Room ({room.players.length}/{room.settings.maxPlayersPerRoom})
               </span>
-              {room.mode === 'ctf' && localPlayer && (
+              {isTeamMode(room.mode) && localPlayer && (
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -433,7 +473,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
-                    {room.mode === 'ctf' && (
+                    {isTeamMode(room.mode) && (
                       <span
                         className={
                           p.team === 'red' ? 'text-red-400 font-semibold' : 'text-blue-400 font-semibold'

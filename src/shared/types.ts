@@ -1,5 +1,16 @@
-export type GameMode = 'deathmatch' | 'ctf';
+export type GameMode = 'deathmatch' | 'tdm' | 'ctf';
 export type TeamId = 'red' | 'blue' | 'none';
+
+/** Modes that use red/blue teams, team spawns, and no friendly fire. */
+export function isTeamMode(mode: GameMode): boolean {
+  return mode === 'ctf' || mode === 'tdm';
+}
+
+export function gameModeLabel(mode: GameMode): string {
+  if (mode === 'ctf') return 'Capture the Flag';
+  if (mode === 'tdm') return 'Team Deathmatch';
+  return 'Deathmatch';
+}
 export type MapId =
   | 'desert'
   | 'industrial'

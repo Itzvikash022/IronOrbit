@@ -270,13 +270,12 @@ export class ArenaScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, map.width, map.height);
     this.applyCameraZoom(map.width, map.height);
 
+    this.camFollowX = map.width * 0.5;
+    this.camFollowY = map.height * 0.5;
+    this.cameras.main.centerOn(this.camFollowX, this.camFollowY);
+
     if (initialSnapshot) {
       this.applySnapshot(initialSnapshot);
-      if (this.localPredTank) {
-        this.camFollowX = this.localPredTank.x;
-        this.camFollowY = this.localPredTank.y;
-        this.cameras.main.centerOn(this.camFollowX, this.camFollowY);
-      }
     }
   }
 
@@ -292,12 +291,10 @@ export class ArenaScene extends Phaser.Scene {
     this.localFlipState = { pendingClicks: 0, lastClickAt: 0 };
     this.localPredTank = null;
     this.applySnapshot(snapshot, true);
-    const localTank = snapshot.tanks.find((t) => t.id === this.localPlayerId);
-    if (localTank) {
-      this.camFollowX = localTank.x;
-      this.camFollowY = localTank.y;
-      this.cameras.main.centerOn(this.camFollowX, this.camFollowY);
-    }
+    const map = ARENA_MAPS[this.activeMapId];
+    this.camFollowX = map.width * 0.5;
+    this.camFollowY = map.height * 0.5;
+    this.cameras.main.centerOn(this.camFollowX, this.camFollowY);
   }
 
   applySnapshot(snapshot: MatchSnapshot, hardSnap = false): void {
@@ -424,6 +421,7 @@ export class ArenaScene extends Phaser.Scene {
         const sprite = this.add
           .image(p.x, p.y, p.isDoubleDamage ? 'proj_double' : 'proj_normal')
           .setDepth(20)
+          .setScale(1.15)
           .setRotation(Math.atan2(p.vy, p.vx));
         vis = { sprite, x: p.x, y: p.y, vx: p.vx, vy: p.vy };
         this.projectileVisuals.set(p.id, vis);
@@ -695,16 +693,15 @@ export class ArenaScene extends Phaser.Scene {
       vis.icon.setY(Math.sin(nowPerf * 0.004) * 2.5);
     }
 
-    // 5. Camera smooth follow + trauma shake
-    if (this.localPredTank) {
-      const followRate = 1 - Math.exp(-8 * rawDt);
-      this.camFollowX = Phaser.Math.Linear(this.camFollowX, this.localPredTank.x, followRate);
-      this.camFollowY = Phaser.Math.Linear(this.camFollowY, this.localPredTank.y, followRate);
+    // 5. Full-map camera centered on arena + light trauma shake
+    {
+      this.camFollowX = map.width * 0.5;
+      this.camFollowY = map.height * 0.5;
 
       let shakeX = 0;
       let shakeY = 0;
       if (this.shakeTrauma > 0) {
-        const mag = this.shakeTrauma * this.shakeTrauma * 14;
+        const mag = this.shakeTrauma * this.shakeTrauma * 10;
         shakeX = (Math.random() * 2 - 1) * mag;
         shakeY = (Math.random() * 2 - 1) * mag;
         this.shakeTrauma = Math.max(0, this.shakeTrauma - rawDt * 2.4);
@@ -721,9 +718,7 @@ export class ArenaScene extends Phaser.Scene {
   private updateAttract(dt: number): void {
     this.attractTime += dt;
     const map = ARENA_MAPS[this.activeMapId];
-    const cx = map.width * 0.5 + Math.cos(this.attractTime * 0.22) * 340;
-    const cy = map.height * 0.5 + Math.sin(this.attractTime * 0.17) * 200;
-    this.cameras.main.centerOn(cx, cy);
+    this.cameras.main.centerOn(map.width * 0.5, map.height * 0.5);
 
     if (this.attractPropA) {
       const hull = this.attractPropA.list[0] as Phaser.GameObjects.Image;

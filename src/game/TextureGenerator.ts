@@ -216,34 +216,34 @@ export function generateGameTextures(scene: Phaser.Scene): void {
     drawTankTurret(ctx, w, h, blueTeamSkin)
   );
 
-  // 2. Projectiles
-  makeCanvas(scene, 'proj_normal', 24, 14, (ctx) => {
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.35)';
+  // 2. Projectiles (wider shells so they read clearly at full-map zoom)
+  makeCanvas(scene, 'proj_normal', 48, 22, (ctx) => {
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.4)';
     ctx.beginPath();
-    ctx.ellipse(9, 7, 8, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(18, 11, 16, 9, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#fbbf24';
-    roundRect(ctx, 5, 4, 14, 6, 3);
+    roundRect(ctx, 8, 5, 32, 12, 6);
     ctx.fill();
 
     ctx.fillStyle = '#fef3c7';
-    roundRect(ctx, 11, 5, 7, 4, 2);
+    roundRect(ctx, 22, 7, 14, 8, 4);
     ctx.fill();
   });
 
-  makeCanvas(scene, 'proj_double', 28, 16, (ctx) => {
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.45)';
+  makeCanvas(scene, 'proj_double', 52, 26, (ctx) => {
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
     ctx.beginPath();
-    ctx.ellipse(11, 8, 10, 6.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(20, 13, 18, 11, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#ef4444';
-    roundRect(ctx, 5, 4, 18, 8, 4);
+    roundRect(ctx, 8, 5, 36, 16, 7);
     ctx.fill();
 
     ctx.fillStyle = '#fee2e2';
-    roundRect(ctx, 13, 5.5, 8, 5, 2.5);
+    roundRect(ctx, 24, 8, 16, 10, 5);
     ctx.fill();
   });
 

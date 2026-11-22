@@ -171,14 +171,16 @@ test('selectSafeSpawn picks spawn farthest from living enemy and crate placement
   }
 });
 
-test('computeArenaCameraZoom targets ~75% visible arena area on desktop without showing out-of-bounds void', () => {
+test('computeArenaCameraZoom fits the entire arena inside the viewport', () => {
   const z1440 = computeArenaCameraZoom(1440, 900, 1800, 1200);
-  const visibleAreaRatio1440 = ((1440 / z1440) * (900 / z1440)) / (1800 * 1200);
-  assert.ok(Math.abs(visibleAreaRatio1440 - 0.75) < 0.02, `expected ~0.75, got ${visibleAreaRatio1440}`);
+  assert.ok(Math.abs(z1440 - Math.min(1440 / 1800, 900 / 1200)) < 1e-9);
 
   const z1280 = computeArenaCameraZoom(1280, 720, 1800, 1200);
-  const visibleAreaRatio1280 = ((1280 / z1280) * (720 / z1280)) / (1800 * 1200);
-  assert.ok(Math.abs(visibleAreaRatio1280 - 0.75) < 0.02, `expected ~0.75, got ${visibleAreaRatio1280}`);
+  assert.ok(Math.abs(z1280 - Math.min(1280 / 1800, 720 / 1200)) < 1e-9);
+
+  // Zoomed view should never crop the map (visible world >= map extents)
+  assert.ok(1440 / z1440 >= 1800 - 1e-6);
+  assert.ok(900 / z1440 >= 1200 - 1e-6);
 });
 
 test('click-to-flip rotation waits for shooting to stop, respects click parity on spam, and applies when rotation resumes', () => {

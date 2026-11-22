@@ -78,9 +78,12 @@ test('damage respects self-immunity, CTF friendly fire off, invincibility, shiel
   assert.equal(selfRes.blockedReason, 'self');
   assert.equal(victim.hp, 100);
 
-  // Friendly fire blocked in CTF
+  // Friendly fire blocked in CTF and Team Deathmatch
   const ffRes = applyTankDamage(victim, 'ally1', 'blue', 25, false, 'ctf', 1000);
   assert.equal(ffRes.blockedReason, 'friendly');
+  assert.equal(victim.hp, 100);
+  const tdmFf = applyTankDamage(victim, 'ally2', 'blue', 25, false, 'tdm', 1000);
+  assert.equal(tdmFf.blockedReason, 'friendly');
   assert.equal(victim.hp, 100);
 
   // Invincibility blocks damage
@@ -177,6 +180,9 @@ test('milestone win conditions trigger at configured kill/flag targets and stay 
 
   const dmTimed = { ...dmMilestone, dmWinMode: 'timed' as const };
   assert.equal(checkMilestoneReached('deathmatch', dmTimed, [{ kills: 25 }], { red: 0, blue: 0 }), false);
+
+  assert.equal(checkMilestoneReached('tdm', dmMilestone, [], { red: 9, blue: 4 }), false);
+  assert.equal(checkMilestoneReached('tdm', dmMilestone, [], { red: 10, blue: 4 }), true);
 
   assert.equal(checkMilestoneReached('ctf', dmMilestone, [], { red: 2, blue: 2 }), false);
   assert.equal(checkMilestoneReached('ctf', dmMilestone, [], { red: 2, blue: 3 }), true);

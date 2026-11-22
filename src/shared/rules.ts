@@ -88,7 +88,11 @@ export function applyTankDamage(
   if (victim.id === attackerId) {
     return { appliedDamage: 0, blockedReason: 'self', eliminated: false };
   }
-  if (mode === 'ctf' && attackerTeam !== 'none' && victim.team === attackerTeam) {
+  if (
+    (mode === 'ctf' || mode === 'tdm') &&
+    attackerTeam !== 'none' &&
+    victim.team === attackerTeam
+  ) {
     return { appliedDamage: 0, blockedReason: 'friendly', eliminated: false };
   }
   if (victim.invincibleUntil > nowMs) {
@@ -262,6 +266,10 @@ export function checkMilestoneReached(
   if (mode === 'deathmatch') {
     if (settings.dmWinMode !== 'milestone' || settings.killTarget <= 0) return false;
     return tanks.some((t) => t.kills >= settings.killTarget);
+  }
+  if (mode === 'tdm') {
+    if (settings.dmWinMode !== 'milestone' || settings.killTarget <= 0) return false;
+    return teamScores.red >= settings.killTarget || teamScores.blue >= settings.killTarget;
   }
   if (settings.ctfWinMode !== 'milestone' || settings.flagTarget <= 0) return false;
   return teamScores.red >= settings.flagTarget || teamScores.blue >= settings.flagTarget;

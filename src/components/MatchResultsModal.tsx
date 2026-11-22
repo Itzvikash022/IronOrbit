@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trophy, RotateCcw, ArrowLeft, LogOut } from 'lucide-react';
 import { ARENA_MAPS } from '../shared/maps';
-import { MatchResult } from '../shared/types';
+import { MatchResult, gameModeLabel, isTeamMode } from '../shared/types';
 
 interface MatchResultsModalProps {
   result: MatchResult;
@@ -40,7 +40,7 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
             id="results-title"
             className="font-display font-extrabold text-3xl text-slate-100 tracking-wide"
           >
-            {result.mode === 'ctf'
+            {isTeamMode(result.mode)
               ? result.winningTeam === 'red'
                 ? 'Red Team Victory'
                 : result.winningTeam === 'blue'
@@ -49,7 +49,7 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
               : `${result.winnerName} Wins`}
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            {map.name} · {result.mode === 'ctf' ? 'Capture the Flag' : 'Deathmatch'} ·{' '}
+            {map.name} · {gameModeLabel(result.mode)} ·{' '}
             <span className="text-amber-300 font-medium">
               {result.endReason === 'milestone' ? 'Milestone Reached' : 'Time Expired'}
             </span>
@@ -69,10 +69,10 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
             </div>
             <div className="bg-[#0b0f14] border border-slate-800 rounded-lg py-3 px-2">
               <div className="text-[11px] uppercase tracking-wider text-slate-400">
-                {result.mode === 'ctf' ? 'Team Score' : 'Total Kills'}
+                {isTeamMode(result.mode) ? 'Team Score' : 'Total Kills'}
               </div>
               <div className="font-mono-num font-bold text-xl text-amber-400 mt-0.5">
-                {result.mode === 'ctf'
+                {isTeamMode(result.mode)
                   ? `${result.teamScores.red} - ${result.teamScores.blue}`
                   : result.totalKills}
               </div>
@@ -115,7 +115,7 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
                   >
                     <td className="py-2.5 px-3 font-mono-num">{row.rank}</td>
                     <td className="py-2.5 px-3 font-semibold flex items-center gap-2">
-                      {result.mode === 'ctf' && (
+                      {isTeamMode(result.mode) && (
                         <span
                           className={`w-2.5 h-2.5 rounded-sm ${
                             row.team === 'red' ? 'bg-red-500' : 'bg-blue-500'

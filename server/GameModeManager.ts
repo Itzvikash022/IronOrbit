@@ -42,6 +42,22 @@ export interface GameModeHandler {
   ): MatchResult;
 }
 
+function applyKillRewards(
+  victim: TankEntity,
+  killer: TankEntity | null,
+  assisters: TankEntity[]
+): void {
+  victim.deaths += 1;
+  if (killer && killer.id !== victim.id) {
+    killer.kills += 1;
+    killer.score += SCORING.KILL;
+  }
+  for (const a of assisters) {
+    a.assists += 1;
+    a.score += SCORING.ASSIST;
+  }
+}
+
 class DeathmatchHandler implements GameModeHandler {
   readonly mode: GameMode = 'deathmatch';
 
@@ -54,15 +70,7 @@ class DeathmatchHandler implements GameModeHandler {
     killer: TankEntity | null,
     assisters: TankEntity[]
   ): void {
-    victim.deaths += 1;
-    if (killer && killer.id !== victim.id) {
-      killer.kills += 1;
-      killer.score += SCORING.KILL;
-    }
-    for (const a of assisters) {
-      a.assists += 1;
-      a.score += SCORING.ASSIST;
-    }
+    applyKillRewards(victim, killer, assisters);
   }
 
   tick(): void {
@@ -88,6 +96,80 @@ class DeathmatchHandler implements GameModeHandler {
       winnerId: top ? top.id : null,
       winnerName: top ? top.nickname : 'No Contest',
       winningTeam: 'none',
+      teamScores,
+      leaderboard,
+      totalKills,
+      totalDeaths,
+    };
+  }
+}
+
+class TeamDeathmatchHandler implements GameModeHandler {
+  readonly mode: GameMode = 'tdm';
+
+  assignTeam(existingTanks: TankEntity[]): TeamId {
+    return assignBalancedTeam(existingTanks);
+  }
+
+  onTankKilled(
+    victim: TankEntity,
+    killer: TankEntity | null,
+    assisters: TankEntity[]
+  ): void {
+    applyKillRewards(victim, killer, assisters);
+  }
+
+  tick(
+    tanks: TankEntity[],
+    _flags: { red: FlagEntity; blue: FlagEntity },
+    _map: ArenaMap,
+    teamScores: { red: number; blue: number }
+  ): void {
+    teamScores.red = 0;
+    teamScores.blue = 0;
+    for (const t of tanks) {
+      if (t.team === 'red') teamScores.red += t.kills;
+      else if (t.team === 'blue') teamScores.blue += t.kills;
+    }
+  }
+
+  buildMatchResult(
+    map: ArenaMap,
+    durationSec: number,
+    endReason: 'milestone' | 'timer',
+    tanks: TankEntity[],
+    teamScores: { red: number; blue: number }
+  ): MatchResult {
+    let winningTeam: TeamId = 'none';
+    if (teamScores.red > teamScores.blue) winningTeam = 'red';
+    else if (teamScores.blue > teamScores.red) winningTeam = 'blue';
+
+    if (winningTeam !== 'none') {
+      for (const t of tanks) {
+        if (t.team === winningTeam) {
+          t.score += SCORING.TEAM_WIN_BONUS;
+        }
+      }
+    }
+
+    const leaderboard = buildLeaderboard(tanks);
+    const totalKills = tanks.reduce((acc, t) => acc + t.kills, 0);
+    const totalDeaths = tanks.reduce((acc, t) => acc + t.deaths, 0);
+    const winnerName =
+      winningTeam === 'red'
+        ? 'Red Team'
+        : winningTeam === 'blue'
+          ? 'Blue Team'
+          : 'Draw Match';
+
+    return {
+      mode: 'tdm',
+      mapId: map.id,
+      durationSec,
+      endReason,
+      winnerId: leaderboard[0]?.id ?? null,
+      winnerName,
+      winningTeam,
       teamScores,
       leaderboard,
       totalKills,
@@ -247,5 +329,6 @@ class CaptureTheFlagHandler implements GameModeHandler {
 
 export function createGameModeHandler(mode: GameMode): GameModeHandler {
   if (mode === 'ctf') return new CaptureTheFlagHandler();
+  if (mode === 'tdm') return new TeamDeathmatchHandler();
   return new DeathmatchHandler();
 }

@@ -529,9 +529,7 @@ export default function App() {
         <GameHud
           snapshot={snapshot}
           localPlayerId={networkClient.playerId}
-          roomCode={room.code}
           pingMs={pingMs}
-          muted={preferences.muted}
           showLeaderboard={showLeaderboard && shellState === 'playing'}
           killFeed={killFeed}
           flagBanner={flagBanner}
@@ -540,22 +538,26 @@ export default function App() {
               ? 'Connection interrupted — reconnecting to match...'
               : disconnectNotice
           }
-          onToggleMute={() =>
-            setPreferences((prev) => ({ ...prev, muted: !prev.muted }))
-          }
-          onToggleLeaderboard={() => setShowLeaderboard((prev) => !prev)}
-          onOpenSettings={() => setShowSettings(true)}
-          onPause={() => {
-            setShowLeaderboard(false);
-            setShellState('paused');
-          }}
         />
       )}
 
       {shellState === 'paused' && room && (
         <PauseModal
           roomCode={room.code}
+          mode={room.mode}
+          mapId={snapshot?.mapId ?? room.mapId}
+          pingMs={pingMs}
+          muted={preferences.muted}
+          snapshot={snapshot}
+          localPlayerId={networkClient.playerId}
           onResume={() => setShellState('playing')}
+          onToggleMute={() =>
+            setPreferences((prev) => ({ ...prev, muted: !prev.muted }))
+          }
+          onToggleLeaderboard={() => {
+            setShowLeaderboard((prev) => !prev);
+            setShellState('playing');
+          }}
           onOpenSettings={() => setShowSettings(true)}
           onLeaveRoom={handleLeaveRoom}
         />
