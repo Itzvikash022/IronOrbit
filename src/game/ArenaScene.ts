@@ -101,7 +101,7 @@ export class ArenaScene extends Phaser.Scene {
   private hitstopTimer = 0;
   private shakeTrauma = 0;
   private camFollowX = 1440;
-  private camFollowY = 600;
+  private camFollowY = 720;
   private serverTimeOffset = 0;
   private ambientAccumulator = 0;
 

@@ -3,9 +3,12 @@ import { pathToFileURL } from 'url';
 
 const OLD_W = 1800;
 const NEW_W = 2880;
-const H = 1200;
+const OLD_H = 1200;
+const H = 1440;
 const SX = NEW_W / OLD_W;
+const SY = H / OLD_H;
 const sx = (n) => Math.round(n * SX);
+const sy = (n) => Math.round(n * SY);
 
 /** Original layouts only (pre-widen). Extra cover is added after scale in clear side lanes. */
 const raw = {
@@ -478,19 +481,19 @@ function scaleObs(list, scaleW = true) {
   return list.map(([id, x, y, w, h, kind]) => ({
     id,
     x: sx(x),
-    y,
+    y: sy(y),
     w: scaleW ? Math.round(w * Math.min(SX, 1.15)) : w,
-    h,
+    h: sy(h),
     kind,
   }));
 }
 
 function scalePts(list) {
-  return list.map(([x, y]) => ({ x: sx(x), y }));
+  return list.map(([x, y]) => ({ x: sx(x), y: sy(y) }));
 }
 
 function scaleBase([x, y, r]) {
-  return { x: sx(x), y, radius: r };
+  return { x: sx(x), y: sy(y), radius: r };
 }
 
 function fmtPalette(p) {
@@ -511,7 +514,7 @@ function fmtPts(pts) {
 }
 
 let out = `import type { ArenaMap, MapId } from './types.ts';\n\n`;
-out += `/** Arena size tuned for wide displays (~21:9) so the map fills common screens. */\n`;
+out += `/** Arena size tuned for wide displays (~2:1) so the map fills a typical browser window. */\n`;
 out += `export const ARENA_WIDTH = ${NEW_W};\n`;
 out += `export const ARENA_HEIGHT = ${H};\n\n`;
 out += `export const ARENA_MAPS: Record<MapId, ArenaMap> = {\n`;
@@ -521,9 +524,9 @@ for (const [id, m] of Object.entries(raw)) {
   const extras = (m.extras || []).map(([eid, x, y, w, h, kind]) => ({
     id: eid,
     x,
-    y,
+    y: sy(y),
     w,
-    h,
+    h: sy(h),
     kind,
   }));
   const obstacles = [...scaleObs(m.obstacles), ...extras];
