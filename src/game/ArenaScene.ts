@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
+import { DEFAULT_ACTION_BIND } from '../shared/actionBind';
 import { DEFAULT_GAME_SETTINGS, POWERUP_META } from '../shared/config';
 import { ARENA_MAPS } from '../shared/maps';
 import {
   computeArenaCameraZoom,
+  getShootSettleMs,
   normalizeAngle,
   registerFireClick,
   RotationFlipState,
@@ -10,6 +12,7 @@ import {
   stepTankMotion,
 } from '../shared/physics';
 import {
+  ActionBind,
   FlagEntity,
   GameMode,
   GameSettings,
@@ -57,6 +60,7 @@ interface ClientProjectileVisual {
 export interface ArenaSceneBridge {
   onSendInput: (input: PlayerInputState) => void;
   onSendShoot: (aimAngle: number) => void;
+  onSendFlip: () => void;
 }
 
 export class ArenaScene extends Phaser.Scene {
@@ -88,12 +92,13 @@ export class ArenaScene extends Phaser.Scene {
   private blueFlagSprite?: Phaser.GameObjects.Image;
   private muzzleFlash?: Phaser.GameObjects.Image;
 
-  // Input state
-  private spaceHeld = false;
-  private pointerDown = false;
+  // Input state — one rebindable action: hold = drive + auto-fire, release = flip spin
+  private actionBind: ActionBind = { ...DEFAULT_ACTION_BIND };
+  private actionHeld = false;
   private inputSeq = 0;
   private lastSentInputAt = 0;
   private lastSentThrust = false;
+  private lastAutoFireAt = 0;
   private localFlipState: RotationFlipState = { pendingClicks: 0, lastClickAt: 0 };
   private lastLocalFlipResolvedAt = 0;
 
@@ -120,9 +125,13 @@ export class ArenaScene extends Phaser.Scene {
   setInputEnabled(enabled: boolean): void {
     this.inputEnabled = enabled;
     if (!enabled) {
-      this.spaceHeld = false;
-      this.pointerDown = false;
+      this.releaseAction(false);
     }
+  }
+
+  setActionBind(bind: ActionBind): void {
+    this.actionBind = bind;
+    this.releaseAction(false);
   }
 
   setAttractPaused(paused: boolean): void {
@@ -166,47 +175,74 @@ export class ArenaScene extends Phaser.Scene {
       if (!this.inputEnabled || this.sceneMode !== 'active') return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (e.code === 'Space') {
-        e.preventDefault();
-        this.spaceHeld = true;
-      }
+      if (this.actionBind.device !== 'keyboard') return;
+      if (e.code !== this.actionBind.code) return;
+      if (e.repeat) return;
+      e.preventDefault();
+      this.pressAction();
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        this.spaceHeld = false;
+      if (this.actionBind.device !== 'keyboard') return;
+      if (e.code !== this.actionBind.code) return;
+      this.releaseAction(true);
+    };
+    const onMouseDown = (e: MouseEvent) => {
+      if (!this.inputEnabled || this.sceneMode !== 'active') return;
+      if (this.actionBind.device !== 'mouse') return;
+      if (e.button !== this.actionBind.button) return;
+      e.preventDefault();
+      this.pressAction();
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      if (this.actionBind.device !== 'mouse') return;
+      if (e.button !== this.actionBind.button) return;
+      this.releaseAction(true);
+    };
+    const onContextMenu = (e: MouseEvent) => {
+      if (this.actionBind.device === 'mouse' && this.actionBind.button === 2) {
+        e.preventDefault();
       }
     };
     const clearKeys = () => {
-      this.spaceHeld = false;
-      this.pointerDown = false;
+      this.releaseAction(false);
     };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('contextmenu', onContextMenu);
     window.addEventListener('blur', clearKeys);
     document.addEventListener('visibilitychange', clearKeys);
 
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('blur', clearKeys);
       document.removeEventListener('visibilitychange', clearKeys);
     });
+  }
 
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!this.inputEnabled || this.sceneMode !== 'active') return;
-      if (pointer.leftButtonDown()) {
-        this.pointerDown = true;
-        if (this.localPredTank?.alive) {
-          registerFireClick(this.localFlipState, performance.now());
-        }
-        this.fireForward();
-      }
-    });
+  private pressAction(): void {
+    if (this.actionHeld) return;
+    this.actionHeld = true;
+    this.fireForward();
+    this.lastAutoFireAt = performance.now();
+  }
 
-    this.input.on('pointerup', () => {
-      this.pointerDown = false;
-    });
+  private releaseAction(flip: boolean): void {
+    if (!this.actionHeld) return;
+    this.actionHeld = false;
+    if (!flip || !this.inputEnabled || this.sceneMode !== 'active') return;
+    if (!this.localPredTank?.alive) return;
+    const now = performance.now();
+    registerFireClick(this.localFlipState, now);
+    // Apply on the next sim step so spin reverses as soon as drive ends
+    this.localFlipState.lastClickAt = now - getShootSettleMs(this.settings);
+    this.bridge?.onSendFlip();
   }
 
   private fireForward(): void {
@@ -285,8 +321,8 @@ export class ArenaScene extends Phaser.Scene {
 
   resyncSnapshot(snapshot: MatchSnapshot): void {
     if (this.sceneMode !== 'active') return;
-    this.spaceHeld = false;
-    this.pointerDown = false;
+    this.actionHeld = false;
+    this.lastAutoFireAt = 0;
     this.lastSentThrust = false;
     this.localFlipState = { pendingClicks: 0, lastClickAt: 0 };
     this.localPredTank = null;
@@ -336,7 +372,7 @@ export class ArenaScene extends Phaser.Scene {
             this.localPredTank.y += (srvTank.y - this.localPredTank.y) * 0.3;
             const angleDiff = normalizeAngle(srvTank.angle - this.localPredTank.angle);
             this.localPredTank.angle = normalizeAngle(this.localPredTank.angle + angleDiff * 0.32);
-            if (!this.spaceHeld) {
+            if (!this.actionHeld) {
               this.localPredTank.vx = srvTank.vx;
               this.localPredTank.vy = srvTank.vy;
             }
@@ -627,7 +663,7 @@ export class ArenaScene extends Phaser.Scene {
       if (simDt > 0) {
         stepTankMotion(
           this.localPredTank,
-          this.spaceHeld && this.inputEnabled,
+          this.actionHeld && this.inputEnabled,
           simDt,
           map,
           this.settings,
@@ -635,15 +671,24 @@ export class ArenaScene extends Phaser.Scene {
         );
       }
 
+      // Hold = keep topping up fire requests; server cooldown gates real shots
+      if (this.actionHeld && this.inputEnabled && this.localPredTank.alive) {
+        const fireGap = Math.max(40, this.settings.fireCooldownMs * 0.45);
+        if (nowPerf - this.lastAutoFireAt >= fireGap) {
+          this.lastAutoFireAt = nowPerf;
+          this.fireForward();
+        }
+      }
+
       if (
         this.inputEnabled &&
-        (this.spaceHeld !== this.lastSentThrust || nowPerf - this.lastSentInputAt >= 40)
+        (this.actionHeld !== this.lastSentThrust || nowPerf - this.lastSentInputAt >= 40)
       ) {
-        this.lastSentThrust = this.spaceHeld;
+        this.lastSentThrust = this.actionHeld;
         this.lastSentInputAt = nowPerf;
         this.bridge?.onSendInput({
           seq: ++this.inputSeq,
-          thrust: this.spaceHeld,
+          thrust: this.actionHeld,
           aimAngle: this.localPredTank.angle,
         });
       }

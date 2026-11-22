@@ -122,10 +122,17 @@ export interface GameSettings {
   flagTarget: number;
 }
 
+/** Primary drive/fire/flip control. Keyboard uses KeyboardEvent.code; mouse uses button index. */
+export type ActionBind =
+  | { device: 'keyboard'; code: string }
+  | { device: 'mouse'; button: number };
+
 export interface ClientPreferences {
   soundVolume: number; // 0..1
   muted: boolean;
   graphicsQuality: GraphicsQuality;
+  /** Hold = drive + auto-fire; release = flip spin. Default Space. */
+  actionBind: ActionBind;
 }
 
 export interface ActivePowerUp {

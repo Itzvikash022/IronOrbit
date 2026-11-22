@@ -116,7 +116,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                   Controls
                 </div>
                 <div className="text-slate-300 leading-snug">
-                  Space drive · Click fire · Tab board
+                  Hold drive + fire · Release flip · Tab board
                 </div>
               </div>
             </>

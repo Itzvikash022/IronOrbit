@@ -85,84 +85,86 @@ export const GameHud: React.FC<GameHudProps> = ({
           <span>{pingMs === null ? '--' : `${pingMs}`}</span>
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3 text-slate-100/90">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2.5 text-slate-100/90">
           {teamMode ? (
             <>
-              <div className="flex items-center gap-1.5">
-                <span
-                  data-testid="hud-red-score"
-                  className="font-display font-bold text-lg text-red-400 tabular-nums leading-none"
-                >
-                  {snapshot.teamScores.red}
-                </span>
+              <div className="flex items-center gap-2 min-w-[3.25rem] justify-end">
                 {showCtfFlags && (
-                  <span className="text-[9px] text-red-300/80 flex items-center gap-0.5">
+                  <span className="text-[9px] text-red-300/75 flex items-center gap-0.5 leading-none">
                     <Flag className="w-2.5 h-2.5" />
                     {flagStatusText(snapshot.flags.red.state)}
                   </span>
                 )}
+                <span
+                  data-testid="hud-red-score"
+                  className="font-display font-bold text-xl text-red-400 tabular-nums leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
+                >
+                  {snapshot.teamScores.red}
+                </span>
               </div>
 
-              <div className="text-center px-1">
+              <div className="text-center px-2.5 py-1 rounded-md bg-slate-950/35 border border-white/5">
                 <div
                   data-testid="hud-timer"
-                  className="font-mono-num font-bold text-base text-slate-100/90 leading-none"
+                  className="font-mono-num font-bold text-[15px] text-slate-50/95 leading-none tracking-wide"
                 >
                   {formatTimer(snapshot.timeRemainingSec)}
                 </div>
                 {snapshot.mode === 'ctf' && snapshot.ctfWinMode === 'milestone' && (
-                  <div className="text-[9px] font-semibold uppercase tracking-wider text-sky-400/80 mt-0.5">
+                  <div className="text-[8px] font-semibold uppercase tracking-[0.14em] text-sky-300/75 mt-0.5">
                     First {snapshot.flagTarget}
                   </div>
                 )}
                 {snapshot.mode === 'tdm' && snapshot.dmWinMode === 'milestone' && (
-                  <div className="text-[9px] font-semibold uppercase tracking-wider text-amber-400/80 mt-0.5">
+                  <div className="text-[8px] font-semibold uppercase tracking-[0.14em] text-amber-300/75 mt-0.5">
                     First {snapshot.killTarget}
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2 min-w-[3.25rem]">
+                <span
+                  data-testid="hud-blue-score"
+                  className="font-display font-bold text-xl text-blue-400 tabular-nums leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
+                >
+                  {snapshot.teamScores.blue}
+                </span>
                 {showCtfFlags && (
-                  <span className="text-[9px] text-blue-300/80 flex items-center gap-0.5">
+                  <span className="text-[9px] text-blue-300/75 flex items-center gap-0.5 leading-none">
                     <Flag className="w-2.5 h-2.5" />
                     {flagStatusText(snapshot.flags.blue.state)}
                   </span>
                 )}
-                <span
-                  data-testid="hud-blue-score"
-                  className="font-display font-bold text-lg text-blue-400 tabular-nums leading-none"
-                >
-                  {snapshot.teamScores.blue}
-                </span>
               </div>
             </>
           ) : (
-            <div
-              data-testid="hud-timer"
-              className="font-mono-num font-bold text-base text-slate-100/90 leading-none"
-            >
-              {formatTimer(snapshot.timeRemainingSec)}
+            <div className="px-2.5 py-1 rounded-md bg-slate-950/35 border border-white/5">
+              <div
+                data-testid="hud-timer"
+                className="font-mono-num font-bold text-[15px] text-slate-50/95 leading-none tracking-wide"
+              >
+                {formatTimer(snapshot.timeRemainingSec)}
+              </div>
             </div>
           )}
 
           {localTank && (
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-600/50 text-[10px] font-mono-num tracking-wide text-slate-300/85">
-              <span>
-                <span className="text-slate-500">K</span>{' '}
-                <span data-testid="hud-kills" className="text-slate-100 font-semibold">
+            <div className="flex items-center gap-2.5 pl-2.5 ml-0.5 border-l border-white/10 text-[10px] font-mono-num tracking-wide text-slate-300/90">
+              <span className="inline-flex items-baseline gap-1">
+                <span className="text-slate-500 text-[9px]">K</span>
+                <span data-testid="hud-kills" className="text-slate-50 font-semibold">
                   {localTank.kills}
                 </span>
               </span>
-              <span>
-                <span className="text-slate-500">D</span>{' '}
-                <span data-testid="hud-deaths" className="text-slate-200 font-semibold">
+              <span className="inline-flex items-baseline gap-1">
+                <span className="text-slate-500 text-[9px]">D</span>
+                <span data-testid="hud-deaths" className="text-slate-100 font-semibold">
                   {localTank.deaths}
                 </span>
               </span>
-              <span>
-                <span className="text-slate-500">S</span>{' '}
-                <span data-testid="hud-score" className="text-amber-400/90 font-semibold">
+              <span className="inline-flex items-baseline gap-1">
+                <span className="text-slate-500 text-[9px]">S</span>
+                <span data-testid="hud-score" className="text-amber-300/95 font-semibold">
                   {localTank.score}
                 </span>
               </span>
@@ -405,7 +407,7 @@ export const GameHud: React.FC<GameHudProps> = ({
         )}
 
         <div className="hidden sm:block text-[10px] text-slate-400/60">
-          Esc Menu · Tab Board · Space Drive · Click Fire
+          Esc Menu · Tab Board · Hold Drive+Fire · Release Flip
         </div>
       </div>
     </div>

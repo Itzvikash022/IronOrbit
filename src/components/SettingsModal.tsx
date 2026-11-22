@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { X, RotateCcw } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, RotateCcw, Keyboard } from 'lucide-react';
+import { DEFAULT_ACTION_BIND, formatActionBind } from '../shared/actionBind';
 import { DEFAULT_GAME_SETTINGS, sanitizeGameSettings } from '../shared/config';
-import { ClientPreferences, GameSettings } from '../shared/types';
+import { ActionBind, ClientPreferences, GameSettings } from '../shared/types';
 
 interface SettingsModalProps {
   preferences: ClientPreferences;
@@ -20,10 +21,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveGameSettings,
   onClose,
 }) => {
-  const [prefs, setPrefs] = useState<ClientPreferences>({ ...preferences });
+  const [prefs, setPrefs] = useState<ClientPreferences>({
+    ...preferences,
+    actionBind: preferences.actionBind ?? { ...DEFAULT_ACTION_BIND },
+  });
   const [rules, setRules] = useState<GameSettings>(() =>
     sanitizeGameSettings(gameSettings, DEFAULT_GAME_SETTINGS)
   );
+  const [listeningBind, setListeningBind] = useState(false);
+
+  useEffect(() => {
+    if (!listeningBind) return;
+
+    const finish = (bind: ActionBind) => {
+      setPrefs((prev) => ({ ...prev, actionBind: bind }));
+      setListeningBind(false);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.code === 'Escape') {
+        setListeningBind(false);
+        return;
+      }
+      finish({ device: 'keyboard', code: e.code });
+    };
+    const onMouseDown = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      finish({ device: 'mouse', button: e.button });
+    };
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('mousedown', onMouseDown, true);
+    window.addEventListener('contextmenu', onContextMenu, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('mousedown', onMouseDown, true);
+      window.removeEventListener('contextmenu', onContextMenu, true);
+    };
+  }, [listeningBind]);
 
   const handleApply = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,10 +107,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <form noValidate onSubmit={handleApply} className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Client Audio & Graphics */}
+          {/* Client Audio, Graphics & Controls */}
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400">
-              Audio & Graphics
+              Audio, Graphics & Controls
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -125,6 +166,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <option value="high">High (Ambient biome particles enabled)</option>
                   <option value="medium">Lightweight (Minimal particles)</option>
                 </select>
+              </div>
+
+              <div className="bg-[#0b0f14] border border-slate-800 rounded-lg p-3.5 sm:col-span-2">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <div className="text-xs font-medium text-slate-200 flex items-center gap-1.5">
+                      <Keyboard className="w-3.5 h-3.5 text-amber-400" />
+                      Drive / Fire Key
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1 leading-snug">
+                      Hold to drive and keep firing. Release to flip spin direction. Tap once to
+                      fire a single shell and flip.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPrefs((prev) => ({ ...prev, actionBind: { ...DEFAULT_ACTION_BIND } }))
+                    }
+                    className="shrink-0 text-[11px] text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setListeningBind(true)}
+                  className={`w-full mt-1 px-3 py-2.5 rounded-lg border text-sm font-semibold tracking-wide cursor-pointer transition-colors ${
+                    listeningBind
+                      ? 'border-amber-400/70 bg-amber-500/15 text-amber-200 animate-pulse'
+                      : 'border-slate-700 bg-[#111720] text-slate-100 hover:border-slate-500'
+                  }`}
+                >
+                  {listeningBind
+                    ? 'Press any key or mouse button… (Esc cancel)'
+                    : formatActionBind(prefs.actionBind)}
+                </button>
               </div>
             </div>
           </section>

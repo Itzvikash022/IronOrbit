@@ -7,6 +7,8 @@ import {
 } from '../src/shared/config.ts';
 import { ARENA_MAPS, getRandomMapId } from '../src/shared/maps.ts';
 import {
+  getShootSettleMs,
+  hasPowerUp,
   registerFireClick,
   type RotationFlipState,
   selectSafeSpawn,
@@ -469,14 +471,24 @@ export class GameRoom {
     if (!playerId) return;
     const session = this.sessions.get(playerId);
     if (!session) return;
-    const tank = this.tanks.find((t) => t.id === playerId);
-    if (tank?.alive) {
-      // Count every fire click for spin direction flip even if out of ammo or on cooldown
-      registerFireClick(session.flipState, Date.now());
-    }
+    // Flip is no longer tied to shoot — action-key release calls handleFlip
     if (session.pendingShots < 3) {
       session.pendingShots += 1;
     }
+  }
+
+  handleFlip(socketId: string): void {
+    if (this.status !== 'playing') return;
+    const playerId = this.socketToPlayer.get(socketId);
+    if (!playerId) return;
+    const session = this.sessions.get(playerId);
+    if (!session) return;
+    const tank = this.tanks.find((t) => t.id === playerId);
+    if (!tank?.alive) return;
+    const now = Date.now();
+    registerFireClick(session.flipState, now);
+    // Reverse spin as soon as drive ends (client already flipped locally)
+    session.flipState.lastClickAt = now - getShootSettleMs(this.settings);
   }
 
   getRoomInfo(): RoomInfo {
@@ -664,14 +676,22 @@ export class GameRoom {
       }
 
       if (session.pendingShots > 0) {
-        session.pendingShots -= 1;
-        this.combat.tryFire(
+        const fired = this.combat.tryFire(
           tank,
           this.settings,
           nowMs,
           this.projectiles,
           combatCallbacks
         );
+        if (fired) {
+          session.pendingShots -= 1;
+        } else if (
+          !tank.alive ||
+          (tank.ammo <= 0 && !hasPowerUp(tank, 'infinite_ammo', nowMs))
+        ) {
+          // Drop queued shots that can never fire; keep them while cooling down
+          session.pendingShots = 0;
+        }
       }
     }
 

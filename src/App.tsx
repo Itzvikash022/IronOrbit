@@ -9,6 +9,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { TitleScreen } from './components/TitleScreen';
 import { ArenaScene } from './game/ArenaScene';
 import { networkClient } from './network/NetworkClient';
+import { DEFAULT_ACTION_BIND, sanitizeActionBind } from './shared/actionBind';
 import { DEFAULT_GAME_SETTINGS } from './shared/config';
 import {
   ClientPreferences,
@@ -23,6 +24,34 @@ import {
 } from './shared/types';
 
 type ShellState = 'title' | 'lobby' | 'playing' | 'paused' | 'gameover';
+
+const PREFS_STORAGE_KEY = 'iron_orbit_prefs';
+
+function loadPreferences(): ClientPreferences {
+  const defaults: ClientPreferences = {
+    soundVolume: 0.65,
+    muted: false,
+    graphicsQuality: 'high',
+    actionBind: { ...DEFAULT_ACTION_BIND },
+  };
+  if (typeof window === 'undefined') return defaults;
+  try {
+    const raw = window.localStorage.getItem(PREFS_STORAGE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Partial<ClientPreferences>;
+    return {
+      soundVolume:
+        typeof parsed.soundVolume === 'number'
+          ? Math.max(0, Math.min(1, parsed.soundVolume))
+          : defaults.soundVolume,
+      muted: Boolean(parsed.muted),
+      graphicsQuality: parsed.graphicsQuality === 'medium' ? 'medium' : 'high',
+      actionBind: sanitizeActionBind(parsed.actionBind),
+    };
+  } catch {
+    return defaults;
+  }
+}
 
 export default function App() {
   const phaserMountRef = useRef<HTMLDivElement | null>(null);
@@ -51,11 +80,7 @@ export default function App() {
   const [reconnecting, setReconnecting] = useState(false);
   const [pingMs, setPingMs] = useState<number | null>(null);
 
-  const [preferences, setPreferences] = useState<ClientPreferences>({
-    soundVolume: 0.65,
-    muted: false,
-    graphicsQuality: 'high',
-  });
+  const [preferences, setPreferences] = useState<ClientPreferences>(() => loadPreferences());
   const [customSettings, setCustomSettings] = useState<GameSettings>({
     ...DEFAULT_GAME_SETTINGS,
   });
@@ -74,11 +99,17 @@ export default function App() {
     }
   }, [shellState, showSettings]);
 
-  // Keep SoundManager synced with preferences
+  // Keep SoundManager / scene synced with preferences and persist them
   useEffect(() => {
     soundManager.setVolume(preferences.soundVolume);
     soundManager.setMuted(preferences.muted);
     sceneRef.current?.setGraphicsQuality(preferences.graphicsQuality);
+    sceneRef.current?.setActionBind(preferences.actionBind);
+    try {
+      window.localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(preferences));
+    } catch {
+      /* ignore quota / private mode */
+    }
   }, [preferences]);
 
   const showTempDisconnect = useCallback((msg: string) => {
@@ -142,7 +173,9 @@ export default function App() {
     arenaScene.setBridge({
       onSendInput: (input) => networkClient.sendInput(input),
       onSendShoot: (aimAngle) => networkClient.sendShoot(aimAngle),
+      onSendFlip: () => networkClient.sendFlip(),
     });
+    arenaScene.setActionBind(preferences.actionBind);
 
     const game = new Phaser.Game({
       type: Phaser.CANVAS,

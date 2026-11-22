@@ -139,6 +139,12 @@ export function attachSocketServer(io: Server): RoomManager {
       ctx.room.handleShoot(socket.id, payload?.aimAngle ?? 0);
     });
 
+    socket.on('player:flip', () => {
+      const ctx = roomManager.getRoomBySocket(socket.id);
+      if (!ctx) return;
+      ctx.room.handleFlip(socket.id);
+    });
+
     socket.on('ping:check', (clientTs: number, ack?: (ts: number) => void) => {
       ack?.(clientTs);
     });

@@ -8,7 +8,6 @@ export class TankSprite {
   private turret: Phaser.GameObjects.Image;
   private shieldRing: Phaser.GameObjects.Image;
   private flagBadge: Phaser.GameObjects.Image;
-  private aimGuide: Phaser.GameObjects.Graphics;
   private uiLayer: Phaser.GameObjects.Container;
   private hpBg: Phaser.GameObjects.Rectangle;
   private hpFill: Phaser.GameObjects.Rectangle;
@@ -28,9 +27,6 @@ export class TankSprite {
     const skinKey = this.resolveSkinKey(tank);
     this.lastSkinKey = skinKey;
 
-    this.aimGuide = scene.add.graphics();
-    this.aimGuide.setVisible(isLocal);
-
     this.hull = scene.add.image(0, 0, `tank_hull_${skinKey}`);
     this.turret = scene.add.image(0, 0, `tank_turret_${skinKey}`);
     this.turret.setOrigin(0.5, 0.5);
@@ -42,13 +38,7 @@ export class TankSprite {
     this.flagBadge.setScale(0.65);
     this.flagBadge.setVisible(false);
 
-    this.container.add([
-      this.aimGuide,
-      this.hull,
-      this.turret,
-      this.shieldRing,
-      this.flagBadge,
-    ]);
+    this.container.add([this.hull, this.turret, this.shieldRing, this.flagBadge]);
 
     // Non-rotating overhead HUD (HP bar + nickname)
     this.uiLayer = scene.add.container(tank.x, tank.y - 34);
@@ -133,26 +123,6 @@ export class TankSprite {
     } else {
       this.recoilOffset = 0;
       this.turret.setPosition(0, 0);
-    }
-
-    // Forward directional arrow aligned strictly with hull chevron and cannon barrel
-    if (this.isLocal) {
-      this.aimGuide.clear();
-      const fx = Math.cos(hullAngle);
-      const fy = Math.sin(hullAngle);
-      const px = -fy;
-      const py = fx;
-      this.aimGuide.lineStyle(2.5, 0xfbbf24, 0.78);
-      this.aimGuide.lineBetween(fx * 35, fy * 35, fx * 50, fy * 50);
-      this.aimGuide.fillStyle(0xfde047, 0.92);
-      this.aimGuide.fillTriangle(
-        fx * 58,
-        fy * 58,
-        fx * 47 + px * 5,
-        fy * 47 + py * 5,
-        fx * 47 - px * 5,
-        fy * 47 - py * 5
-      );
     }
 
     // Invincibility or Shield power-up visual
