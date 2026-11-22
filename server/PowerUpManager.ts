@@ -98,7 +98,10 @@ export class PowerUpManager {
   }
 
   private pickPowerUp(map: ArenaMap): PowerUpType {
-    if (map.hazardSpec?.terrainUlt) return 'terrain_boost';
+    // Terrain maps: 25% chance of a terrain charge, otherwise a normal boost.
+    if (map.hazardSpec?.terrainUlt && Math.random() < 0.25) {
+      return 'terrain_boost';
+    }
     return ALL_POWERUP_TYPES[Math.floor(Math.random() * ALL_POWERUP_TYPES.length)];
   }
 }
