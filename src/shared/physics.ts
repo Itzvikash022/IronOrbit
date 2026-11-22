@@ -138,7 +138,8 @@ export interface RotationFlipState {
 export function getShootSettleMs(
   settings: Pick<GameSettings, 'fireCooldownMs'>
 ): number {
-  return Math.max(settings.fireCooldownMs, 260);
+  // ~50% snappier than fire cooldown so spin flips feel reactive after a tap
+  return Math.max(Math.round(settings.fireCooldownMs * 0.5), 120);
 }
 
 export function registerFireClick(

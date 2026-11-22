@@ -189,12 +189,12 @@ test('click-to-flip rotation waits for shooting to stop, respects click parity o
   const tank = makeTank({ x: 900, y: 300, angle: 0, rotationDir: 1 });
   const flipState: RotationFlipState = { pendingClicks: 0, lastClickAt: 0 };
 
-  // 1. Single click -> does NOT flip instantly mid-shot, flips after fireCooldownMs settles
+  // 1. Single click -> brief settle (~half fire cooldown), then flips
   registerFireClick(flipState, 1000);
-  assert.equal(stepRotationFlip(tank, flipState, 1100, DEFAULT_GAME_SETTINGS), false);
+  assert.equal(stepRotationFlip(tank, flipState, 1050, DEFAULT_GAME_SETTINGS), false);
   assert.equal(tank.rotationDir, 1);
 
-  assert.equal(stepRotationFlip(tank, flipState, 1300, DEFAULT_GAME_SETTINGS), true);
+  assert.equal(stepRotationFlip(tank, flipState, 1150, DEFAULT_GAME_SETTINGS), true);
   assert.equal(tank.rotationDir, -1);
 
   // Tank now rotates anti-clockwise (angle decreases)
