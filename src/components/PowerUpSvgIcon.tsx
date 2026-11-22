@@ -118,6 +118,27 @@ export const PowerUpSvgIcon: React.FC<{
           <rect x="15.5" y="6" width="4.5" height="12" rx="1" fill={color} stroke="#0f172a" strokeWidth="1.2" />
         </>
       )}
+      {type === 'terrain_boost' && (
+        <>
+          <path
+            d="M12 3L19 7V13.5C19 17.2 16 20.2 12 21.5C8 20.2 5 17.2 5 13.5V7L12 3Z"
+            fill={color}
+            stroke="#0f172a"
+            strokeWidth="1.4"
+          />
+          <text
+            x="12"
+            y="14.5"
+            textAnchor="middle"
+            fill="#0f172a"
+            fontFamily="'Barlow Condensed', sans-serif"
+            fontWeight="800"
+            fontSize="10"
+          >
+            3
+          </text>
+        </>
+      )}
     </svg>
   );
 };

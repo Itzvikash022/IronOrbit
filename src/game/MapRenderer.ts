@@ -12,26 +12,44 @@ export class MapRenderer {
   render(map: ArenaMap, mode: GameMode): void {
     this.layer.removeAll(true);
 
-    // 1. Tiled Biome Floor
-    // Floor extends well past the arena so letterbox space shows ground, not black.
+    // 1. Floor — baked full-arena art when available, else procedural tile
     const FLOOR_MARGIN = 3000;
-    const tile = this.scene.add.tileSprite(
-      map.width / 2,
-      map.height / 2,
-      map.width + FLOOR_MARGIN * 2,
-      map.height + FLOOR_MARGIN * 2,
-      `tile_${map.id}`
-    );
-    this.layer.add(tile);
+    const floorKey = `floor_${map.id}`;
+    const useBaked = Boolean(map.bakedFloor && this.scene.textures.exists(floorKey));
+    if (useBaked) {
+      const base = this.scene.add.rectangle(
+        map.width / 2,
+        map.height / 2,
+        map.width + FLOOR_MARGIN * 2,
+        map.height + FLOOR_MARGIN * 2,
+        Phaser.Display.Color.HexStringToColor(map.palette.groundBase).color
+      );
+      this.layer.add(base);
+      const floor = this.scene.add
+        .image(map.width / 2, map.height / 2, floorKey)
+        .setDisplaySize(map.width, map.height);
+      this.layer.add(floor);
+    } else {
+      const tile = this.scene.add.tileSprite(
+        map.width / 2,
+        map.height / 2,
+        map.width + FLOOR_MARGIN * 2,
+        map.height + FLOOR_MARGIN * 2,
+        `tile_${map.id}`
+      );
+      this.layer.add(tile);
+    }
 
     // 2. Arena Boundary Frame & Subtle Grid
     const g = this.scene.add.graphics();
-    g.lineStyle(1, 0xffffff, 0.045);
-    for (let x = 150; x < map.width; x += 150) {
-      g.lineBetween(x, 0, x, map.height);
-    }
-    for (let y = 150; y < map.height; y += 150) {
-      g.lineBetween(0, y, map.width, y);
+    if (!useBaked) {
+      g.lineStyle(1, 0xffffff, 0.045);
+      for (let x = 150; x < map.width; x += 150) {
+        g.lineBetween(x, 0, x, map.height);
+      }
+      for (let y = 150; y < map.height; y += 150) {
+        g.lineBetween(0, y, map.width, y);
+      }
     }
 
     // Perimeter reinforced border
@@ -47,9 +65,11 @@ export class MapRenderer {
       this.drawBaseZone(map.blueBase.x, map.blueBase.y, map.blueBase.radius, 0x3b82f6, 'BLUE BASE');
     }
 
-    // 4. Stylized Biome Obstacles with Contact Shadows & Surface Details
-    for (const obs of map.obstacles) {
-      this.drawObstacle(obs, map);
+    // 4. Obstacles — skip drawing when art is baked into the floor image (collision still active)
+    if (!useBaked) {
+      for (const obs of map.obstacles) {
+        this.drawObstacle(obs, map);
+      }
     }
   }
 

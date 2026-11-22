@@ -60,7 +60,7 @@ const MAPS = [
   {
     id: 'dunes',
     name: 'Dune Sea',
-    subtitle: 'Shifting sand drifts that drag your tracks to a crawl',
+    subtitle: 'Collect 3 sand charges to slow the enemy team',
     category: 'terrain',
     palette: {
       groundBase: '#d8b878',
@@ -72,9 +72,7 @@ const MAPS = [
       obstacleTop: '#b98a55',
       ambientEffect: 'dust',
     },
-    hazardSpec: {
-      surfaces: [{ kind: 'sand', count: [5, 7], rx: [170, 320], ry: [110, 200] }],
-    },
+    hazardSpec: { terrainUlt: 'slow' },
     left: [
       [480, 330, 130, 110, 'rock'],
       [540, 1010, 150, 120, 'rock'],
@@ -91,7 +89,7 @@ const MAPS = [
   {
     id: 'glacier',
     name: 'Glacier Rift',
-    subtitle: 'Frozen sheets where tanks slide and walls of ice stand tall',
+    subtitle: 'Collect 3 ice charges to freeze the enemy team',
     category: 'terrain',
     palette: {
       groundBase: '#bfe3f2',
@@ -103,9 +101,7 @@ const MAPS = [
       obstacleTop: '#a5d4ec',
       ambientEffect: 'snow',
     },
-    hazardSpec: {
-      surfaces: [{ kind: 'ice', count: [4, 6], rx: [200, 340], ry: [120, 220] }],
-    },
+    hazardSpec: { terrainUlt: 'freeze' },
     left: [
       [520, 360, 60, 220, 'ice_wall'],
       [520, 860, 60, 220, 'ice_wall'],
@@ -122,7 +118,7 @@ const MAPS = [
   {
     id: 'magma',
     name: 'Magma Fields',
-    subtitle: 'Cracked basalt with molten pools that burn anything that lingers',
+    subtitle: 'Collect 3 magma charges to burn the enemy team',
     category: 'terrain',
     palette: {
       groundBase: '#2a1612',
@@ -134,9 +130,7 @@ const MAPS = [
       obstacleTop: '#7a3d2c',
       ambientEffect: 'embers',
     },
-    hazardSpec: {
-      surfaces: [{ kind: 'lava', count: [4, 6], rx: [110, 210], ry: [80, 150] }],
-    },
+    hazardSpec: { terrainUlt: 'burn' },
     left: [
       [500, 420, 90, 90, 'lava_pillar'],
       [500, 930, 90, 90, 'lava_pillar'],
@@ -151,7 +145,7 @@ const MAPS = [
   {
     id: 'storm',
     name: 'Storm Plateau',
-    subtitle: 'Wind-scoured highland where gusts bend every shell',
+    subtitle: 'Collect 3 storm charges to shield your team from shells',
     category: 'terrain',
     palette: {
       groundBase: '#7d8a6a',
@@ -163,7 +157,7 @@ const MAPS = [
       obstacleTop: '#7f8598',
       ambientEffect: 'dust',
     },
-    hazardSpec: { wind: true },
+    hazardSpec: { terrainUlt: 'gust_shield' },
     left: [
       [560, 300, 200, 50, 'barrier'],
       [560, 1090, 200, 50, 'barrier'],

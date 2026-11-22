@@ -4,6 +4,7 @@ import {
   RECONNECT_GRACE_MS,
   sanitizeGameSettings,
   TANK_SKINS,
+  TERRAIN_ULT,
 } from '../src/shared/config.ts';
 import { newMatchSeed } from '../src/shared/hazards.ts';
 import { ARENA_MAPS, getRandomMapId } from '../src/shared/maps.ts';
@@ -37,6 +38,7 @@ import type {
   SupplyCrateEntity,
   TankEntity,
   TeamId,
+  TerrainUltState,
 } from '../src/shared/types.ts';
 import { isTeamMode } from '../src/shared/types.ts';
 import { decideBotAction } from './BotAI.ts';
@@ -83,6 +85,8 @@ export class GameRoom {
   private hazards = new HazardSystem();
   private matchSeed = 1;
   includeBetaMaps = false;
+  private terrainUlt: TerrainUltState | null = null;
+  private terrainBurnAcc = 0;
 
   private tanks: TankEntity[] = [];
   private projectiles: ProjectileEntity[] = [];
@@ -509,6 +513,8 @@ export class GameRoom {
     this.teamScores = { red: 0, blue: 0 };
     this.combat.reset();
     this.powerUps.reset(nowMs);
+    this.terrainUlt = null;
+    this.terrainBurnAcc = 0;
 
     this.flags = {
       red: {
@@ -689,7 +695,83 @@ export class GameRoom {
       connected: session.connected,
       lastProcessedSeq: 0,
       isBot: session.isBot || undefined,
+      terrainCharges: 0,
+      slowedUntil: 0,
+      gustShieldUntil: 0,
+      stunnedUntil: 0,
     };
+  }
+
+  private isTerrainUltOpponent(owner: TankEntity, other: TankEntity): boolean {
+    if (other.id === owner.id || !other.alive) return false;
+    if (isTeamMode(this.mode) && owner.team !== 'none') return other.team !== owner.team;
+    return true;
+  }
+
+  private isTerrainUltAlly(owner: TankEntity, other: TankEntity): boolean {
+    if (!other.alive) return false;
+    if (other.id === owner.id) return true;
+    if (isTeamMode(this.mode) && owner.team !== 'none') return other.team === owner.team;
+    return false;
+  }
+
+  private activateTerrainUlt(collector: TankEntity, nowMs: number): void {
+    const kind = ARENA_MAPS[this.mapId].hazardSpec?.terrainUlt;
+    if (!kind) return;
+    const expiresAt = nowMs + TERRAIN_ULT.durationMs;
+    this.terrainUlt = {
+      kind,
+      ownerId: collector.id,
+      ownerTeam: collector.team,
+      expiresAt,
+    };
+    this.terrainBurnAcc = 0;
+
+    if (kind === 'freeze') {
+      for (const t of this.tanks) {
+        if (this.isTerrainUltOpponent(collector, t)) t.stunnedUntil = expiresAt;
+      }
+    } else if (kind === 'slow') {
+      for (const t of this.tanks) {
+        if (this.isTerrainUltOpponent(collector, t)) t.slowedUntil = expiresAt;
+      }
+    } else if (kind === 'gust_shield') {
+      for (const t of this.tanks) {
+        if (this.isTerrainUltAlly(collector, t)) t.gustShieldUntil = expiresAt;
+      }
+    }
+
+    this.io.to(this.code).emit('terrain:ult', {
+      kind,
+      ownerId: collector.id,
+      ownerName: collector.nickname,
+      ownerTeam: collector.team,
+      expiresAt,
+    });
+  }
+
+  private tickTerrainUlt(
+    nowMs: number,
+    dt: number,
+    combatCallbacks: CombatEventCallbacks
+  ): void {
+    if (!this.terrainUlt) return;
+    if (nowMs >= this.terrainUlt.expiresAt) {
+      this.terrainUlt = null;
+      this.terrainBurnAcc = 0;
+      return;
+    }
+    if (this.terrainUlt.kind !== 'burn') return;
+    const owner = this.tanks.find((t) => t.id === this.terrainUlt!.ownerId);
+    if (!owner) return;
+    this.terrainBurnAcc += TERRAIN_ULT.burnDps * dt;
+    const whole = Math.floor(this.terrainBurnAcc);
+    if (whole < 1) return;
+    this.terrainBurnAcc -= whole;
+    for (const t of this.tanks) {
+      if (!this.isTerrainUltOpponent(owner, t)) continue;
+      this.combat.applyEnvironmentHit(t, whole, this.tanks, this.settings, nowMs, combatCallbacks);
+    }
   }
 
   private startLoop(): void {
@@ -821,6 +903,7 @@ export class GameRoom {
       stepRotationFlip(tank, session.flipState, nowMs, this.settings);
       stepTankMotion(tank, session.input.thrust, dt, map, this.settings, nowMs, {
         surface: this.hazards.surfaceAt(tank.x, tank.y),
+        slowed: (tank.slowedUntil ?? 0) > nowMs,
       });
       tank.aimAngle = tank.angle;
 
@@ -900,9 +983,13 @@ export class GameRoom {
           collectorName: collector.nickname,
           x: crate.x,
           y: crate.y,
+          terrainCharges: collector.terrainCharges ?? 0,
         });
       },
+      onTerrainUltReady: (collector) => this.activateTerrainUlt(collector, nowMs),
     });
+
+    this.tickTerrainUlt(nowMs, dt, combatCallbacks);
 
     // 5. Mode-specific tick (e.g. CTF flag interactions)
     this.modeHandler.tick(
@@ -948,6 +1035,7 @@ export class GameRoom {
       matchSeed: this.matchSeed,
       matchStartTime: this.matchStartTime,
       turrets: this.hazards.getTurretEntities(),
+      terrainUlt: this.terrainUlt,
       mode: this.mode,
       mapId: this.mapId,
       tanks: this.tanks,

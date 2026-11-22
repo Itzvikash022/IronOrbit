@@ -385,6 +385,23 @@ export function generateGameTextures(scene: Phaser.Scene): void {
         ctx.fillRect(6, 8, 5, 13);
         ctx.fillRect(12, 8, 5, 13);
         ctx.fillRect(18, 8, 5, 13);
+      } else if (pType === 'terrain_boost') {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i - Math.PI / 6;
+          const px = 14 + Math.cos(a) * 10;
+          const py = 14 + Math.sin(a) * 10;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 11px Barlow Condensed, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('3', 14, 15);
       }
     });
   }

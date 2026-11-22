@@ -1,4 +1,9 @@
-import { ALL_POWERUP_TYPES, CRATE_RADIUS, TANK_RADIUS } from '../src/shared/config.ts';
+import {
+  ALL_POWERUP_TYPES,
+  CRATE_RADIUS,
+  TANK_RADIUS,
+  TERRAIN_BOOST_CHARGES_REQUIRED,
+} from '../src/shared/config.ts';
 import { distanceSq, findValidCratePosition } from '../src/shared/physics.ts';
 import { activatePowerUp, pruneExpiredPowerUps } from '../src/shared/rules.ts';
 import type {
@@ -12,6 +17,8 @@ import type {
 export interface PowerUpCallbacks {
   onCrateSpawned: (crate: SupplyCrateEntity) => void;
   onCrateCollected: (crate: SupplyCrateEntity, collector: TankEntity) => void;
+  /** Fired when a tank reaches 3 terrain charges and the ultimate should trigger. */
+  onTerrainUltReady?: (collector: TankEntity) => void;
 }
 
 export class PowerUpManager {
@@ -31,26 +38,33 @@ export class PowerUpManager {
     nowMs: number,
     callbacks: PowerUpCallbacks
   ): void {
-    // 1. Prune expired power-ups on tanks
     for (const tank of tanks) {
       pruneExpiredPowerUps(tank, nowMs);
     }
 
-    // 2. Despawn uncollected crates past lifetime
     for (let i = crates.length - 1; i >= 0; i--) {
       if (nowMs >= crates[i].expiresAt) {
         crates.splice(i, 1);
       }
     }
 
-    // 3. Check crate collection by driving over them
     const pickupDistSq = (TANK_RADIUS + CRATE_RADIUS) ** 2;
     for (let i = crates.length - 1; i >= 0; i--) {
       const crate = crates[i];
       for (const tank of tanks) {
         if (!tank.alive || !tank.connected) continue;
         if (distanceSq(tank.x, tank.y, crate.x, crate.y) <= pickupDistSq) {
-          activatePowerUp(tank, crate.powerUp, nowMs, settings);
+          if (crate.powerUp === 'terrain_boost') {
+            const charges = (tank.terrainCharges ?? 0) + 1;
+            if (charges >= TERRAIN_BOOST_CHARGES_REQUIRED) {
+              tank.terrainCharges = 0;
+              callbacks.onTerrainUltReady?.(tank);
+            } else {
+              tank.terrainCharges = charges;
+            }
+          } else {
+            activatePowerUp(tank, crate.powerUp, nowMs, settings);
+          }
           crates.splice(i, 1);
           callbacks.onCrateCollected(crate, tank);
           break;
@@ -58,7 +72,6 @@ export class PowerUpManager {
       }
     }
 
-    // 4. Cap active boosts at 3; while full, anchor spawn timer so a replacement spawns only after one is taken
     const maxCrates = Math.max(1, Math.min(3, settings.maxActiveCrates));
     if (crates.length >= maxCrates) {
       this.lastSpawnAt = nowMs;
@@ -69,7 +82,7 @@ export class PowerUpManager {
       this.lastSpawnAt = nowMs;
       const pos = findValidCratePosition(map, crates, tanks);
       if (pos) {
-        const powerUp = this.pickRandomPowerUp();
+        const powerUp = this.pickPowerUp(map);
         const crate: SupplyCrateEntity = {
           id: `c_${++this.crateCounter}`,
           x: pos.x,
@@ -84,7 +97,8 @@ export class PowerUpManager {
     }
   }
 
-  private pickRandomPowerUp(): PowerUpType {
+  private pickPowerUp(map: ArenaMap): PowerUpType {
+    if (map.hazardSpec?.terrainUlt) return 'terrain_boost';
     return ALL_POWERUP_TYPES[Math.floor(Math.random() * ALL_POWERUP_TYPES.length)];
   }
 }

@@ -48,13 +48,13 @@ interface RoomLobbyProps {
 function mapMechanicsHint(id: MapId): string {
   switch (id) {
     case 'dunes':
-      return 'Sand patches slow your tank to a crawl. Patches move every match.';
+      return 'Pick up 3 sand charges to slow the enemy team for 5 seconds.';
     case 'glacier':
-      return 'Ice sheets make you skid. Patches move every match.';
+      return 'Pick up 3 ice charges to freeze the enemy team for 5 seconds.';
     case 'magma':
-      return 'Lava pools burn anything that sits in them. Pools move every match.';
+      return 'Pick up 3 magma charges to burn the enemy team for 5 seconds.';
     case 'storm':
-      return 'Wind gusts bend shells - even back toward you.';
+      return 'Pick up 3 storm charges to shield your team from shells for 5 seconds.';
     case 'sentinel':
       return 'Wall turrets fire on enemies (everyone in FFA / Team DM; only the other team in CTF).';
     case 'overgrowth':

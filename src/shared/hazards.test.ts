@@ -75,6 +75,12 @@ test('map registry: 7 classic + 7 beta, beta maps flagged and categorized', () =
   for (const id of BETA_MAP_IDS) {
     assert.equal(ARENA_MAPS[id].beta, true);
     assert.ok(ARENA_MAPS[id].hazardSpec, `${id} has a hazardSpec`);
+    if (ARENA_MAPS[id].category === 'terrain') {
+      assert.ok(ARENA_MAPS[id].hazardSpec?.terrainUlt, `${id} terrainUlt`);
+      assert.equal(ARENA_MAPS[id].bakedFloor, true);
+      assert.equal(!!ARENA_MAPS[id].hazardSpec?.surfaces?.length, false);
+      assert.equal(!!ARENA_MAPS[id].hazardSpec?.wind, false);
+    }
   }
 });
 
@@ -98,9 +104,9 @@ test('hazard generation is deterministic per seed and varies between seeds', () 
     const b = generateMapHazards(map, 12345);
     assert.deepEqual(a, b, `${id} same seed => same layout`);
   }
-  const dunes = ARENA_MAPS.dunes;
-  const layouts = new Set(SEEDS.map((s) => JSON.stringify(generateMapHazards(dunes, s).zones)));
-  assert.ok(layouts.size > SEEDS.length * 0.9, 'dune patches are randomized per match');
+  const overgrowth = ARENA_MAPS.overgrowth;
+  const layouts = new Set(SEEDS.map((s) => JSON.stringify(generateMapHazards(overgrowth, s).zones)));
+  assert.ok(layouts.size > SEEDS.length * 0.9, 'grass patches are randomized per match');
 });
 
 test('generated zones and turrets respect counts, spawns, bases, crates and obstacles', () => {
@@ -215,7 +221,7 @@ test('stunned tanks cannot drive, rotate, or fire', () => {
   assert.equal(canTankFire(tank, now + 1500, DEFAULT_GAME_SETTINGS), true);
 });
 
-test('wind schedule is deterministic, bounded in time, and only on wind maps', () => {
+test('wind schedule is deterministic and bounded (legacy helper; no terrain map enables wind)', () => {
   const seed = 987654;
   let activeMs = 0;
   let gusts = 0;
@@ -233,6 +239,7 @@ test('wind schedule is deterministic, bounded in time, and only on wind maps', (
   assert.ok(gusts >= 10, `gusts happen regularly (${gusts})`);
   assert.ok(share > 0.1 && share < 0.45, `gusts are intermittent, not constant (${share.toFixed(2)})`);
   assert.equal(getMapWindAt(ARENA_MAPS.dunes, seed, 7000).active, false);
+  assert.equal(getMapWindAt(ARENA_MAPS.storm, seed, 7000).active, false); // area wind dumped
   assert.equal(getMapWindAt(ARENA_MAPS.dunes, seed, 7000).warning, false);
 
   // Every gust is telegraphed first

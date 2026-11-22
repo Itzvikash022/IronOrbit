@@ -40,7 +40,11 @@ export type PowerUpType =
   | 'rapid_fire'
   | 'double_damage'
   | 'health_restore'
-  | 'extra_ammo';
+  | 'extra_ammo'
+  /** Terrain-map charge pickup; 3 charges trigger that map's team ultimate. */
+  | 'terrain_boost';
+
+export type TerrainUltKind = 'slow' | 'freeze' | 'burn' | 'gust_shield';
 
 export type GraphicsQuality = 'high' | 'medium';
 
@@ -129,6 +133,16 @@ export interface HazardSpec {
   wind?: boolean;
   turrets?: [number, number]; // min..max wall turrets
   bombs?: boolean;
+  /** Terrain maps: 3× terrain_boost pickups trigger this team ultimate. */
+  terrainUlt?: TerrainUltKind;
+}
+
+/** Active match-wide terrain ultimate (server authority). */
+export interface TerrainUltState {
+  kind: TerrainUltKind;
+  ownerId: string;
+  ownerTeam: TeamId;
+  expiresAt: number;
 }
 
 export interface TurretEntity {
@@ -159,6 +173,8 @@ export interface ArenaMap {
   category?: MapCategory;
   beta?: boolean;
   hazardSpec?: HazardSpec;
+  /** When true, floor art is a full-arena image (`floor_${id}`) and obstacles are collision-only. */
+  bakedFloor?: boolean;
 }
 
 export interface GameSettings {
@@ -245,6 +261,12 @@ export interface TankEntity {
   isBot?: boolean;
   /** Epoch ms until which the tank is stunned (can't drive or shoot). */
   stunnedUntil?: number;
+  /** 0..2 terrain boost charges; the 3rd pickup fires the map ultimate and resets to 0. */
+  terrainCharges?: number;
+  /** Epoch ms until which movement is slowed (dunes ultimate). */
+  slowedUntil?: number;
+  /** Epoch ms until which this tank ignores projectile hits (storm ultimate). */
+  gustShieldUntil?: number;
 }
 
 export interface ProjectileEntity {
@@ -328,6 +350,8 @@ export interface MatchSnapshot {
   /** Server epoch ms at match start (elapsed = serverTime - matchStartTime). */
   matchStartTime: number;
   turrets: TurretEntity[];
+  /** Active terrain ultimate, if any. */
+  terrainUlt: TerrainUltState | null;
   mode: GameMode;
   mapId: MapId;
   tanks: TankEntity[];

@@ -146,6 +146,13 @@ export class ArenaScene extends Phaser.Scene {
     this.attractPaused = paused;
   }
 
+  preload(): void {
+    // Baked terrain floors (authored art); missing files are fine — MapRenderer falls back to tiles.
+    for (const id of ['dunes', 'glacier', 'magma', 'storm'] as const) {
+      this.load.image(`floor_${id}`, `/maps/${id}.png`);
+    }
+  }
+
   create(): void {
     generateGameTextures(this);
     this.mapRenderer = new MapRenderer(this);
@@ -400,6 +407,9 @@ export class ArenaScene extends Phaser.Scene {
           this.localPredTank.ammoRegenProgress = srvTank.ammoRegenProgress;
           this.localPredTank.invincibleUntil = srvTank.invincibleUntil;
           this.localPredTank.stunnedUntil = srvTank.stunnedUntil;
+          this.localPredTank.slowedUntil = srvTank.slowedUntil;
+          this.localPredTank.gustShieldUntil = srvTank.gustShieldUntil;
+          this.localPredTank.terrainCharges = srvTank.terrainCharges;
           this.localPredTank.activePowerUps = srvTank.activePowerUps;
           this.localPredTank.carryingFlag = srvTank.carryingFlag;
           this.localPredTank.team = srvTank.team;
@@ -675,7 +685,10 @@ export class ArenaScene extends Phaser.Scene {
           map,
           this.settings,
           serverNow,
-          { surface: this.hazards.surfaceAt(this.localPredTank.x, this.localPredTank.y) }
+          {
+            surface: this.hazards.surfaceAt(this.localPredTank.x, this.localPredTank.y),
+            slowed: (this.localPredTank.slowedUntil ?? 0) > serverNow,
+          }
         );
       }
 

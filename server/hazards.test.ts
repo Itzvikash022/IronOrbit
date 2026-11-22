@@ -61,15 +61,25 @@ function makeCallbacks() {
 
 const SETTINGS = DEFAULT_GAME_SETTINGS;
 
+function lavaTestMap() {
+  return {
+    ...ARENA_MAPS.desert,
+    id: 'desert' as const,
+    hazardSpec: {
+      surfaces: [{ kind: 'lava' as const, count: [4, 4] as [number, number], rx: [120, 120] as [number, number], ry: [90, 90] as [number, number] }],
+    },
+  };
+}
+
 test('lava burns tanks standing in it (after a short grace) and never outside it', () => {
-  const map = ARENA_MAPS.magma;
+  const map = lavaTestMap();
   const hazards = new HazardSystem();
   const start = 100_000;
   hazards.reset(map, 777, start);
   const lava = hazards.getZones().find((z) => z.kind === 'lava');
-  assert.ok(lava, 'magma map generates lava pools');
+  assert.ok(lava, 'synthetic lava map generates pools');
 
-  const inLava = makeTank({ id: 'burn', x: lava.x, y: lava.y });
+  const inLava = makeTank({ id: 'burn', x: lava!.x, y: lava!.y });
   const safe = makeTank({ id: 'safe', x: 5, y: 5 });
   const { events, cb } = makeCallbacks();
 
@@ -80,16 +90,16 @@ test('lava burns tanks standing in it (after a short grace) and never outside it
   }
   const total = events.envDamage.reduce((s, e) => s + e.amount, 0);
   assert.ok(events.envDamage.every((e) => e.victim.id === 'burn'));
-  // ~2s in lava minus 250ms grace at lavaDps
   assert.ok(total >= HAZARD_TUNING.lavaDps * 1.4 && total <= HAZARD_TUNING.lavaDps * 2.1, `lava total ${total}`);
 });
 
 test('lava kills are credited to the environment and respawn normally', () => {
-  const map = ARENA_MAPS.magma;
+  const map = lavaTestMap();
   const hazards = new HazardSystem();
   hazards.reset(map, 778, 0);
-  const lava = hazards.getZones().find((z) => z.kind === 'lava')!;
-  const tank = makeTank({ x: lava.x, y: lava.y, hp: 5 });
+  const lava = hazards.getZones().find((z) => z.kind === 'lava');
+  assert.ok(lava);
+  const tank = makeTank({ x: lava!.x, y: lava!.y, hp: 5 });
   const combat = new CombatSystem();
   const kills: { victim: string; killer: string | null }[] = [];
   const combatCb = {

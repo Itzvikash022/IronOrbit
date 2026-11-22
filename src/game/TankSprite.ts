@@ -137,10 +137,11 @@ export class TankSprite {
     // Invincibility or Shield power-up visual
     const isInvincible = tank.invincibleUntil > nowMs;
     const hasShield = hasPowerUp(tank, 'shield', nowMs);
-    if (isInvincible || hasShield) {
+    const hasGust = (tank.gustShieldUntil ?? 0) > nowMs;
+    if (isInvincible || hasShield || hasGust) {
       this.shieldRing.setVisible(true);
       this.shieldRing.rotation += dt * 2.6;
-      this.shieldRing.setTint(hasShield ? 0x22d3ee : 0xfef08a);
+      this.shieldRing.setTint(hasGust ? 0xa855f7 : hasShield ? 0x22d3ee : 0xfef08a);
       this.container.setAlpha(
         isInvincible ? 0.55 + Math.sin(nowMs * 0.02) * 0.3 : 1
       );

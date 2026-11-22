@@ -4,7 +4,7 @@ import type { GameSettings, PowerUpType } from './types.ts';
  * Bump whenever client/server wire format or shared simulation changes in a way that makes
  * old and new builds desync. Mismatched clients are refused with a refresh prompt.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export const TANK_RADIUS = 20;
 export const PROJECTILE_RADIUS = 8;
@@ -161,6 +161,15 @@ export const POWERUP_META: Record<PowerUpType, PowerUpMeta> = {
     accent: '#fef08a',
     timed: false,
   },
+  terrain_boost: {
+    type: 'terrain_boost',
+    label: 'Terrain Charge',
+    shortLabel: 'ULT',
+    description: 'Collect 3 to trigger this map’s team ultimate',
+    color: '#a855f7',
+    accent: '#e9d5ff',
+    timed: false,
+  },
 };
 
 export const ALL_POWERUP_TYPES: PowerUpType[] = [
@@ -172,6 +181,16 @@ export const ALL_POWERUP_TYPES: PowerUpType[] = [
   'health_restore',
   'extra_ammo',
 ];
+
+/** Terrain-map crates always drop terrain charges (not the normal pool). */
+export const TERRAIN_BOOST_CHARGES_REQUIRED = 3;
+export const TERRAIN_ULT = {
+  durationMs: 5000,
+  slowSpeedMul: 0.4,
+  slowAccelMul: 0.45,
+  burnDps: 12,
+  burnTickMs: 250,
+} as const;
 
 export interface TankSkinConfig {
   id: number;

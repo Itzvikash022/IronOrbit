@@ -176,6 +176,7 @@ export function stepRotationFlip(
 
 export interface TankEnv {
   surface?: SurfaceKind;
+  slowed?: boolean;
 }
 
 export function isTankStunned(tank: { stunnedUntil?: number }, nowMs: number): boolean {
@@ -204,6 +205,10 @@ export function stepTankMotion(
   const stunned = isTankStunned(tank, nowMs);
   const thrust = thrustInput && !stunned;
   const mods = surfaceModifiers(env?.surface ?? 'none');
+  if (env?.slowed) {
+    mods.speedMul *= 0.4;
+    mods.accelMul *= 0.45;
+  }
 
   // Rotate continuously only while stationary; lock angle while Spacebar thrust is held
   if (!thrust && !stunned) {

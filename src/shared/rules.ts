@@ -104,6 +104,9 @@ export function applyTankDamage(
   if (hasPowerUp(victim, 'shield', nowMs)) {
     return { appliedDamage: 0, blockedReason: 'shield', eliminated: false };
   }
+  if ((victim.gustShieldUntil ?? 0) > nowMs) {
+    return { appliedDamage: 0, blockedReason: 'shield', eliminated: false };
+  }
 
   const dmg = isDoubleDamage
     ? Math.round(baseDamage * DOUBLE_DAMAGE_MULTIPLIER)

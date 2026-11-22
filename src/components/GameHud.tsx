@@ -79,7 +79,10 @@ export const GameHud: React.FC<GameHudProps> = ({
           <span>{envStatus.windWarning ? 'Gust incoming' : 'Wind'}</span>
           <ArrowRight
             className="w-3.5 h-3.5"
-            style={{ transform: `rotate(rad)`, opacity: 0.5 + envStatus.windStrength * 0.5 }}
+            style={{
+              transform: `rotate(${envStatus.windAngle}rad)`,
+              opacity: 0.5 + envStatus.windStrength * 0.5,
+            }}
           />
         </div>
       )}
@@ -95,6 +98,26 @@ export const GameHud: React.FC<GameHudProps> = ({
           <div className="font-mono-num text-xs text-yellow-100/80">
             {(envStatus.stunMsLeft / 1000).toFixed(1)}s
           </div>
+        </div>
+      )}
+      {snapshot.terrainUlt && snapshot.terrainUlt.expiresAt > nowServer && (
+        <div
+          data-testid="hud-terrain-ult"
+          className="absolute left-1/2 -translate-x-1/2 top-14 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-fuchsia-500/15 border border-fuchsia-300/40 text-[10px] font-semibold uppercase tracking-wider text-fuchsia-100"
+        >
+          <Zap className="w-3 h-3" />
+          <span>
+            {snapshot.terrainUlt.kind === 'slow'
+              ? 'Sand Slow'
+              : snapshot.terrainUlt.kind === 'freeze'
+                ? 'Ice Freeze'
+                : snapshot.terrainUlt.kind === 'burn'
+                  ? 'Magma Burn'
+                  : 'Storm Shield'}
+          </span>
+          <span className="font-mono-num normal-case tracking-normal">
+            {((snapshot.terrainUlt.expiresAt - nowServer) / 1000).toFixed(1)}s
+          </span>
         </div>
       )}
 
@@ -336,8 +359,20 @@ export const GameHud: React.FC<GameHudProps> = ({
       <div className="flex items-end justify-between gap-3">
         {localTank ? (
           <div className="flex flex-col gap-1.5 opacity-55">
-            {(localTank.activePowerUps.length > 0 || isInvincible) && (
+            {((localTank.terrainCharges ?? 0) > 0 ||
+              localTank.activePowerUps.length > 0 ||
+              isInvincible) && (
               <div className="flex flex-wrap items-center gap-1.5">
+                {(localTank.terrainCharges ?? 0) > 0 && (
+                  <div
+                    data-testid="hud-terrain-charges"
+                    className="border border-fuchsia-400/50 rounded px-2 py-1 flex items-center gap-1 text-[10px] font-semibold text-fuchsia-200 bg-[#0b0f14]/35"
+                  >
+                    <PowerUpSvgIcon type="terrain_boost" size={12} />
+                    <span>Charge</span>
+                    <span className="font-mono-num">{localTank.terrainCharges}/3</span>
+                  </div>
+                )}
                 {isInvincible && (
                   <div className="border border-amber-400/50 rounded px-2 py-1 flex items-center gap-1 text-[10px] font-semibold text-amber-300/90 bg-[#0b0f14]/35">
                     <ShieldCheck className="w-3 h-3" />
