@@ -24,7 +24,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   tankAcceleration: 1450,
   tankDeceleration: 1850,
   projectileSpeed: 720,
-  projectileDamage: 25,
+  projectileDamage: 100,
   projectileRange: 760,
   fireCooldownMs: 280,
   maxAmmo: 6,
