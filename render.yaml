@@ -3,7 +3,7 @@ services:
     name: iron-orbit
     runtime: node
     plan: free
-    region: oregon
+    region: singapore
     branch: main
     autoDeploy: true
     buildCommand: npm install --legacy-peer-deps && npm run build
