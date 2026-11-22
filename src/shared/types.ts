@@ -31,6 +31,16 @@ export type PowerUpType =
 
 export type GraphicsQuality = 'high' | 'medium';
 
+export type BotDifficulty = 'noob' | 'player' | 'pro';
+
+export const BOT_DIFFICULTIES: BotDifficulty[] = ['noob', 'player', 'pro'];
+
+export function botDifficultyLabel(d: BotDifficulty): string {
+  if (d === 'noob') return 'Noob';
+  if (d === 'pro') return 'Pro';
+  return 'Player';
+}
+
 export interface Vec2 {
   x: number;
   y: number;
@@ -177,6 +187,7 @@ export interface TankEntity {
   carryingFlag: TeamId; // 'none' | 'red' | 'blue'
   connected: boolean;
   lastProcessedSeq: number;
+  isBot?: boolean;
 }
 
 export interface ProjectileEntity {
@@ -219,6 +230,7 @@ export interface LobbyPlayer {
   skinIndex: number;
   isHost: boolean;
   connected: boolean;
+  isBot?: boolean;
 }
 
 export interface RoomInfo {
@@ -229,6 +241,8 @@ export interface RoomInfo {
   status: 'lobby' | 'playing' | 'ended';
   players: LobbyPlayer[];
   settings: GameSettings;
+  /** Shared difficulty for all bots in the room (0–3 bots). */
+  botDifficulty: BotDifficulty;
 }
 
 export interface LeaderboardEntry {

@@ -268,7 +268,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     display={`${rules.killTarget} kills`}
                     value={rules.killTarget}
                     min={3}
-                    max={50}
+                    max={99}
                     step={1}
                     disabled={!canEditMatchRules}
                     onChange={(v) => setRules({ ...rules, killTarget: v })}

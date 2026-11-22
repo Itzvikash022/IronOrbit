@@ -354,3 +354,55 @@ test('shoot press flips rotationDir even at zero ammo and DM/CTF milestones end 
     httpServer.close();
   }
 });
+
+test('bots: solo CTF allowed, second human blocked while CTF+bots, kill modes allow bots', async () => {
+  const httpServer = http.createServer();
+  const io = new SocketIOServer(httpServer, { cors: { origin: '*' } });
+  const roomManager = attachSocketServer(io);
+
+  await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  const address = httpServer.address();
+  assert.ok(address && typeof address !== 'string');
+  const url = `http://127.0.0.1:${address.port}`;
+
+  const host = await connectClient(url);
+  const guest = await connectClient(url);
+
+  try {
+    const created = await new Promise((resolve) => {
+      host.emit('room:create', { playerId: 'hostB', nickname: 'HostBot' }, resolve);
+    });
+    assert.equal(created.ok, true);
+    const code = created.room.code;
+
+    host.emit('room:config', { mode: 'ctf' });
+    await new Promise((r) => setTimeout(r, 40));
+
+    const botsOk = await new Promise((resolve) => {
+      host.emit('room:bots', { count: 2, difficulty: 'noob' }, resolve);
+    });
+    assert.equal(botsOk.ok, true);
+
+    const blocked = await new Promise((resolve) => {
+      guest.emit('room:join', { code, playerId: 'guestB', nickname: 'GuestBot' }, resolve);
+    });
+    assert.equal(blocked.ok, false);
+    assert.match(blocked.error, /bots/i);
+
+    host.emit('room:config', { mode: 'tdm' });
+    await new Promise((r) => setTimeout(r, 40));
+
+    const joined = await new Promise((resolve) => {
+      guest.emit('room:join', { code, playerId: 'guestB', nickname: 'GuestBot' }, resolve);
+    });
+    assert.equal(joined.ok, true);
+    assert.ok(joined.room.players.filter((p) => p.isBot).length >= 1);
+    assert.equal(joined.room.settings.killTarget, 40);
+  } finally {
+    host.disconnect();
+    guest.disconnect();
+    roomManager.destroy();
+    io.close();
+    httpServer.close();
+  }
+});

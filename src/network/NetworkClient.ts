@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import {
+  BotDifficulty,
   FlagBannerEvent,
   GameMode,
   GameSettings,
@@ -355,6 +356,25 @@ export class NetworkClient {
     settings?: Partial<GameSettings>;
   }): void {
     this.socket?.emit('room:config', payload);
+  }
+
+  setBots(
+    count: number,
+    difficulty?: BotDifficulty
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return new Promise((resolve) => {
+      if (!this.socket?.connected) {
+        resolve({ ok: false, error: 'Not connected.' });
+        return;
+      }
+      const timer = window.setTimeout(() => {
+        resolve({ ok: false, error: 'Server did not respond.' });
+      }, 5000);
+      this.socket.emit('room:bots', { count, difficulty }, (res: unknown) => {
+        window.clearTimeout(timer);
+        resolve((res as { ok: true } | { ok: false; error: string }) ?? { ok: false, error: 'No response.' });
+      });
+    });
   }
 
   switchTeam(team: 'red' | 'blue'): void {

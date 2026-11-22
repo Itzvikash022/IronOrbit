@@ -20,6 +20,7 @@ import {
   tickAmmoRegen,
 } from '../src/shared/rules.ts';
 import type {
+  BotDifficulty,
   FlagBannerEvent,
   FlagEntity,
   GameMode,
@@ -37,11 +38,16 @@ import type {
   TeamId,
 } from '../src/shared/types.ts';
 import { isTeamMode } from '../src/shared/types.ts';
+import { decideBotAction } from './BotAI.ts';
 import type { CombatEventCallbacks } from './CombatSystem.ts';
 import { CombatSystem } from './CombatSystem.ts';
 import { createGameModeHandler } from './GameModeManager.ts';
 import type { GameModeHandler } from './GameModeManager.ts';
 import { PowerUpManager } from './PowerUpManager.ts';
+
+export const MAX_BOTS = 3;
+export const CTF_BOTS_JOIN_BLOCK =
+  'This Capture the Flag room has bots. Ask the host to switch to FFA/Team DM or remove the bots before you can join.';
 
 interface PlayerSession {
   playerId: string; // persistent client token
@@ -54,6 +60,7 @@ interface PlayerSession {
   input: PlayerInputState;
   pendingShots: number;
   flipState: RotationFlipState;
+  isBot: boolean;
 }
 
 export class GameRoom {
@@ -84,6 +91,8 @@ export class GameRoom {
   private killCounter = 0;
   private lastMatchResult: MatchResult | null = null;
   private onEmptyCallback: (code: string) => void;
+  private botDifficulty: BotDifficulty = 'player';
+  private botSeq = 0;
 
   constructor(
     code: string,
@@ -109,6 +118,28 @@ export class GameRoom {
     return this.sessions.size;
   }
 
+  humanCount(): number {
+    let n = 0;
+    for (const s of this.sessions.values()) {
+      if (!s.isBot) n += 1;
+    }
+    return n;
+  }
+
+  botCount(): number {
+    let n = 0;
+    for (const s of this.sessions.values()) {
+      if (s.isBot) n += 1;
+    }
+    return n;
+  }
+
+  /** Bots allowed in FFA/TDM always; CTF only while the room is solo (1 human). */
+  botsAllowedInCurrentMode(humanOverride?: number): boolean {
+    if (this.mode !== 'ctf') return true;
+    return (humanOverride ?? this.humanCount()) <= 1;
+  }
+
   hasNickname(nickname: string, excludePlayerId?: string): boolean {
     const normalized = nickname.trim().toLowerCase();
     for (const session of this.sessions.values()) {
@@ -131,6 +162,9 @@ export class GameRoom {
     | { ok: false; error: string } {
     const existing = this.sessions.get(playerId);
     if (existing) {
+      if (existing.isBot) {
+        return { ok: false, error: 'That player id belongs to a bot.' };
+      }
       const previousSocketId = existing.socketId;
       const wasDisconnected = !existing.connected;
       if (previousSocketId && previousSocketId !== socketId) {
@@ -176,6 +210,11 @@ export class GameRoom {
       return { ok: false, error: 'Room is full.' };
     }
 
+    // CTF + bots is solo-only: joining would make 2+ humans
+    if (this.mode === 'ctf' && this.botCount() > 0 && this.humanCount() >= 1) {
+      return { ok: false, error: CTF_BOTS_JOIN_BLOCK };
+    }
+
     const cleanNick = nickname.trim().slice(0, 18);
     if (!cleanNick) {
       return { ok: false, error: 'Nickname is required.' };
@@ -199,7 +238,8 @@ export class GameRoom {
   private addSession(
     playerId: string,
     socketId: string,
-    nickname: string
+    nickname: string,
+    isBot = false
   ): PlayerSession {
     const usedSkins = new Set(Array.from(this.sessions.values()).map((s) => s.skinIndex));
     let skinIndex = this.sessions.size % TANK_SKINS.length;
@@ -227,10 +267,58 @@ export class GameRoom {
       input: { seq: 0, thrust: false, aimAngle: 0 },
       pendingShots: 0,
       flipState: { pendingClicks: 0, lastClickAt: 0 },
+      isBot,
     };
     this.sessions.set(playerId, session);
     this.socketToPlayer.set(socketId, playerId);
     return session;
+  }
+
+  setBots(
+    requesterId: string,
+    count: number,
+    difficulty?: BotDifficulty
+  ): { ok: true } | { ok: false; error: string } {
+    if (requesterId !== this.hostId) {
+      return { ok: false, error: 'Only the host can manage bots.' };
+    }
+    if (this.status !== 'lobby') {
+      return { ok: false, error: 'Bots can only be changed in the lobby.' };
+    }
+
+    const target = Math.max(0, Math.min(MAX_BOTS, Math.round(Number(count) || 0)));
+    if (difficulty === 'noob' || difficulty === 'player' || difficulty === 'pro') {
+      this.botDifficulty = difficulty;
+    }
+
+    if (target > 0 && !this.botsAllowedInCurrentMode()) {
+      return {
+        ok: false,
+        error:
+          'Bots in Capture the Flag are only allowed in solo rooms. Switch to FFA/Team DM, or play CTF alone with bots.',
+      };
+    }
+
+    const current = this.botCount();
+    if (target > current) {
+      for (let i = current; i < target; i++) {
+        if (this.sessions.size >= this.settings.maxPlayersPerRoom) break;
+        this.botSeq += 1;
+        const id = `bot_${this.code}_${this.botSeq}`;
+        const nick = `Bot ${this.botSeq}`;
+        this.addSession(id, `bot-socket:${id}`, nick, true);
+      }
+    } else if (target < current) {
+      const bots = Array.from(this.sessions.values()).filter((s) => s.isBot);
+      const removeN = current - target;
+      for (let i = 0; i < removeN; i++) {
+        const bot = bots[bots.length - 1 - i];
+        if (bot) this.removePlayer(bot.playerId, 'left');
+      }
+    }
+
+    this.broadcastRoomInfo();
+    return { ok: true };
   }
 
   handleDisconnect(socketId: string): void {
@@ -296,17 +384,26 @@ export class GameRoom {
     }
     this.tanks = this.tanks.filter((t) => t.id !== playerId);
 
-    if (this.sessions.size === 0) {
+    // Drop leftover bots when the last human leaves
+    if (this.humanCount() === 0) {
+      const botIds = Array.from(this.sessions.values())
+        .filter((s) => s.isBot)
+        .map((s) => s.playerId);
+      for (const id of botIds) {
+        this.socketToPlayer.delete(this.sessions.get(id)?.socketId ?? '');
+        this.sessions.delete(id);
+        this.tanks = this.tanks.filter((t) => t.id !== id);
+      }
       this.stopLoop();
       this.onEmptyCallback(this.code);
       return;
     }
 
-    // Reassign host if needed
+    // Reassign host if needed (humans only)
     if (this.hostId === playerId) {
       const nextHost =
-        Array.from(this.sessions.values()).find((s) => s.connected) ??
-        Array.from(this.sessions.values())[0];
+        Array.from(this.sessions.values()).find((s) => s.connected && !s.isBot) ??
+        Array.from(this.sessions.values()).find((s) => !s.isBot);
       if (nextHost) {
         this.hostId = nextHost.playerId;
       }
@@ -333,12 +430,28 @@ export class GameRoom {
     if (requesterId !== this.hostId) return;
 
     if (payload.mode && payload.mode !== this.mode) {
-      this.mode = payload.mode;
+      const nextMode = payload.mode;
+      // CTF with bots requires solo — strip bots when 2+ humans switch into CTF
+      if (nextMode === 'ctf' && this.botCount() > 0 && this.humanCount() >= 2) {
+        const bots = Array.from(this.sessions.values()).filter((s) => s.isBot);
+        for (const bot of bots) {
+          this.removePlayer(bot.playerId, 'left');
+        }
+      }
+
+      this.mode = nextMode;
       this.modeHandler = createGameModeHandler(this.mode);
+
+      // Mode-specific kill-target defaults (host can still edit afterward)
+      if (nextMode === 'tdm') {
+        this.settings = sanitizeGameSettings({ killTarget: 40 }, this.settings);
+      } else if (nextMode === 'deathmatch') {
+        this.settings = sanitizeGameSettings({ killTarget: 10 }, this.settings);
+      }
+
       if (!isTeamMode(this.mode)) {
         for (const s of this.sessions.values()) s.team = 'none';
       } else {
-        // Rebalance teams
         const list = Array.from(this.sessions.values());
         list.forEach((s, idx) => {
           s.team = idx % 2 === 0 ? 'red' : 'blue';
@@ -488,6 +601,7 @@ export class GameRoom {
       skinIndex: s.skinIndex,
       isHost: s.playerId === this.hostId,
       connected: s.connected,
+      isBot: s.isBot || undefined,
     }));
 
     return {
@@ -498,6 +612,7 @@ export class GameRoom {
       status: this.status,
       players,
       settings: this.settings,
+      botDifficulty: this.botDifficulty,
     };
   }
 
@@ -560,6 +675,7 @@ export class GameRoom {
       carryingFlag: 'none',
       connected: session.connected,
       lastProcessedSeq: 0,
+      isBot: session.isBot || undefined,
     };
   }
 
@@ -579,12 +695,42 @@ export class GameRoom {
   cleanupDisconnected(nowMs: number): void {
     const toRemove: string[] = [];
     for (const session of this.sessions.values()) {
+      if (session.isBot) continue;
       if (!session.connected && nowMs - session.disconnectedAt >= RECONNECT_GRACE_MS) {
         toRemove.push(session.playerId);
       }
     }
     for (const id of toRemove) {
       this.removePlayer(id, 'timeout');
+    }
+  }
+
+  private runBotControllers(nowMs: number): void {
+    for (const session of this.sessions.values()) {
+      if (!session.isBot || !session.connected) continue;
+      const tank = this.tanks.find((t) => t.id === session.playerId);
+      if (!tank || !tank.alive) {
+        session.input.thrust = false;
+        continue;
+      }
+
+      const decision = decideBotAction(
+        tank,
+        this.tanks,
+        this.mode,
+        this.botDifficulty
+      );
+      session.input = {
+        seq: session.input.seq + 1,
+        thrust: decision.thrust,
+        aimAngle: tank.angle,
+      };
+      if (decision.wantFlip) {
+        registerFireClick(session.flipState, nowMs);
+      }
+      if (decision.wantShoot && session.pendingShots < 1) {
+        session.pendingShots += 1;
+      }
     }
   }
 
@@ -596,6 +742,8 @@ export class GameRoom {
 
     this.cleanupDisconnected(nowMs);
     if (this.status !== 'playing') return;
+
+    this.runBotControllers(nowMs);
 
     const map = ARENA_MAPS[this.mapId];
     const combatCallbacks: CombatEventCallbacks = {

@@ -13,9 +13,13 @@ import {
   Target,
   Clock,
   Wifi,
+  Bot,
 } from 'lucide-react';
 import { ARENA_MAPS, MAP_IDS } from '../shared/maps';
 import {
+  BOT_DIFFICULTIES,
+  BotDifficulty,
+  botDifficultyLabel,
   GameMode,
   GameSettings,
   MapId,
@@ -34,8 +38,10 @@ interface RoomLobbyProps {
   onRerollMap: () => void;
   onSwitchTeam: (team: 'red' | 'blue') => void;
   onPatchSettings: (patch: Partial<GameSettings>) => void;
+  onSetBots: (count: number, difficulty: BotDifficulty) => void;
   onOpenSettings: () => void;
   disconnectNotice: string | null;
+  botsError?: string | null;
 }
 
 export const RoomLobby: React.FC<RoomLobbyProps> = ({
@@ -49,10 +55,16 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
   onRerollMap,
   onSwitchTeam,
   onPatchSettings,
+  onSetBots,
   onOpenSettings,
   disconnectNotice,
+  botsError = null,
 }) => {
   const [copied, setCopied] = useState(false);
+  const botCount = room.players.filter((p) => p.isBot).length;
+  const humanCount = room.players.length - botCount;
+  const botsBlockedByCtf = room.mode === 'ctf' && humanCount >= 2;
+  const botDifficulty = room.botDifficulty ?? 'player';
   const isHost = room.hostId === localPlayerId;
   const currentMap = ARENA_MAPS[room.mapId];
   const localPlayer = room.players.find((p) => p.id === localPlayerId);
@@ -81,7 +93,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
             {pingMs !== null && (
               <div
                 data-testid="lobby-ping"
-                className={`hidden sm:flex items-center gap-1.5 bg-[#0b0f14] border border-slate-700 rounded-lg px-2.5 py-2 text-xs font-mono-num font-semibold ${
+                className={`hidden sm:inline-flex h-9 items-center gap-1.5 bg-[#0b0f14] border border-slate-700 rounded-lg px-2.5 text-xs font-mono-num font-semibold leading-none tabular-nums ${
                   pingMs <= 80
                     ? 'text-emerald-400'
                     : pingMs <= 160
@@ -89,8 +101,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                       : 'text-red-400'
                 }`}
               >
-                <Wifi className="w-3.5 h-3.5" />
-                <span>{pingMs} ms</span>
+                <Wifi className="w-3.5 h-3.5 shrink-0" />
+                <span className="leading-none">{pingMs}&nbsp;ms</span>
               </div>
             )}
 
@@ -209,7 +221,7 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                       ? 'Team Kills'
                       : 'Kills';
                 const minTarget = usesKillTarget ? 3 : 1;
-                const maxTarget = usesKillTarget ? 50 : 15;
+                const maxTarget = usesKillTarget ? 99 : 15;
                 const stepTarget = 1;
 
                 return (
@@ -258,8 +270,8 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                     </div>
 
                     {isHost && activeWinMode === 'milestone' && (
-                      <div className="flex items-center justify-between text-xs px-1">
-                        <span className="text-slate-400">
+                      <div className="flex items-center justify-between text-xs px-1 gap-2">
+                        <span className="text-slate-400 shrink-0">
                           {usesKillTarget
                             ? room.mode === 'tdm'
                               ? 'Team Kill Target'
@@ -282,9 +294,28 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                           >
                             -
                           </button>
-                          <span className="w-20 text-center font-mono-num font-bold text-slate-100">
-                            {activeTarget}
-                          </span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={minTarget}
+                            max={maxTarget}
+                            value={activeTarget}
+                            aria-label={`${unitLabel} target`}
+                            onChange={(e) => {
+                              const raw = Number(e.target.value);
+                              if (!Number.isFinite(raw)) return;
+                              const next = Math.max(
+                                minTarget,
+                                Math.min(maxTarget, Math.round(raw))
+                              );
+                              onPatchSettings(
+                                usesKillTarget
+                                  ? { killTarget: next }
+                                  : { flagTarget: next }
+                              );
+                            }}
+                            className="w-14 h-6 text-center font-mono-num font-bold text-slate-100 bg-[#111720] border border-slate-700 rounded outline-none focus:border-amber-500/70 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          />
                           <button
                             type="button"
                             aria-label={`Increase ${unitLabel} target`}
@@ -361,6 +392,84 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+            </div>
+
+            {/* Bots */}
+            <div className="bg-[#0b0f14] border border-slate-800 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Bot className="w-3.5 h-3.5 text-violet-400" />
+                  Bots ({botCount}/3)
+                </span>
+                {botsBlockedByCtf && (
+                  <span className="text-[10px] text-amber-400/90 text-right leading-snug">
+                    CTF bots are solo-only
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Up to 3 bots. Allowed in FFA / Team DM anytime; CTF only when you are alone in
+                the room.
+              </p>
+              {isHost ? (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-slate-400">Count</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={botsBlockedByCtf && botCount === 0}
+                        aria-label="Remove bot"
+                        onClick={() => onSetBots(Math.max(0, botCount - 1), botDifficulty)}
+                        className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold cursor-pointer disabled:opacity-40"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-mono-num font-bold text-slate-100">
+                        {botCount}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={botsBlockedByCtf || botCount >= 3}
+                        aria-label="Add bot"
+                        onClick={() => onSetBots(Math.min(3, botCount + 1), botDifficulty)}
+                        className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold cursor-pointer disabled:opacity-40"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs text-slate-400">Difficulty</span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {BOT_DIFFICULTIES.map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          disabled={botsBlockedByCtf && botCount === 0}
+                          onClick={() => onSetBots(botCount, d)}
+                          className={`px-2 py-1.5 rounded text-[11px] font-semibold border transition-colors cursor-pointer disabled:opacity-40 ${
+                            botDifficulty === d
+                              ? 'bg-violet-500/20 border-violet-400/70 text-violet-200'
+                              : 'bg-[#111720] border-slate-800 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {botDifficultyLabel(d)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {botsError && (
+                    <p className="text-[11px] text-amber-300 leading-snug">{botsError}</p>
+                  )}
+                </>
+              ) : (
+                <div className="text-xs text-slate-300">
+                  {botCount === 0
+                    ? 'No bots in this room.'
+                    : `${botCount} bot${botCount === 1 ? '' : 's'} · ${botDifficultyLabel(botDifficulty)}`}
                 </div>
               )}
             </div>
@@ -467,7 +576,12 @@ export const RoomLobby: React.FC<RoomLobbyProps> = ({
                     {p.id === localPlayerId && (
                       <span className="text-xs text-slate-400">(You)</span>
                     )}
-                    {!p.connected && (
+                    {p.isBot && (
+                      <span className="text-[10px] uppercase tracking-wide text-violet-300/90 font-semibold">
+                        Bot
+                      </span>
+                    )}
+                    {!p.connected && !p.isBot && (
                       <span className="text-xs text-amber-400">Reconnecting...</span>
                     )}
                   </div>

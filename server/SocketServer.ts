@@ -1,5 +1,11 @@
 import { Server, type Socket } from 'socket.io';
-import type { GameMode, GameSettings, MapId, PlayerInputState } from '../src/shared/types.ts';
+import type {
+  BotDifficulty,
+  GameMode,
+  GameSettings,
+  MapId,
+  PlayerInputState,
+} from '../src/shared/types.ts';
 import { RoomManager } from './RoomManager.ts';
 
 export function attachSocketServer(io: Server): RoomManager {
@@ -114,6 +120,22 @@ export function attachSocketServer(io: Server): RoomManager {
       if (!ctx) return;
       ctx.room.switchTeam(ctx.playerId, payload.team);
     });
+
+    socket.on(
+      'room:bots',
+      (
+        payload: { count?: number; difficulty?: BotDifficulty },
+        ack?: (res: unknown) => void
+      ) => {
+        const ctx = roomManager.getRoomBySocket(socket.id);
+        if (!ctx) {
+          ack?.({ ok: false, error: 'Not in a room.' });
+          return;
+        }
+        const res = ctx.room.setBots(ctx.playerId, payload?.count ?? 0, payload?.difficulty);
+        ack?.(res);
+      }
+    );
 
     socket.on('match:start', (payload?: { randomizeMap?: boolean }) => {
       const ctx = roomManager.getRoomBySocket(socket.id);

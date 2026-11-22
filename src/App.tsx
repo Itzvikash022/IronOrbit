@@ -12,6 +12,7 @@ import { networkClient } from './network/NetworkClient';
 import { DEFAULT_ACTION_BIND, sanitizeActionBind } from './shared/actionBind';
 import { DEFAULT_GAME_SETTINGS } from './shared/config';
 import {
+  BotDifficulty,
   ClientPreferences,
   FlagBannerEvent,
   GameMode,
@@ -70,6 +71,7 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<MatchSnapshot | null>(null);
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [botsError, setBotsError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const [showSettings, setShowSettings] = useState(false);
@@ -511,6 +513,14 @@ export default function App() {
     }
   };
 
+  const handleSetBots = async (count: number, difficulty: BotDifficulty) => {
+    setBotsError(null);
+    const res = await networkClient.setBots(count, difficulty);
+    if (!res.ok) {
+      setBotsError(res.error);
+    }
+  };
+
   const isHost = Boolean(room && room.hostId === networkClient.playerId);
   const canEditMatchRules =
     shellState === 'title' || (shellState === 'lobby' && isHost);
@@ -548,7 +558,9 @@ export default function App() {
           onRerollMap={handleRerollMap}
           onSwitchTeam={handleSwitchTeam}
           onPatchSettings={handlePatchRoomSettings}
+          onSetBots={handleSetBots}
           onOpenSettings={() => setShowSettings(true)}
+          botsError={botsError}
           disconnectNotice={
             reconnecting
               ? 'Connection interrupted — reconnecting to lobby...'

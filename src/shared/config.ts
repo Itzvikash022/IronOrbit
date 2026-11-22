@@ -75,7 +75,7 @@ export function sanitizeGameSettings(
     maxPlayersPerRoom: Math.round(clampNum(merged.maxPlayersPerRoom, 2, 16, base.maxPlayersPerRoom)),
     serverTickRate: Math.round(clampNum(merged.serverTickRate, 15, 40, base.serverTickRate)),
     dmWinMode: merged.dmWinMode === 'timed' ? 'timed' : 'milestone',
-    killTarget: Math.round(clampNum(merged.killTarget, 3, 50, base.killTarget)),
+    killTarget: Math.round(clampNum(merged.killTarget, 3, 99, base.killTarget)),
     ctfWinMode: merged.ctfWinMode === 'timed' ? 'timed' : 'milestone',
     flagTarget: Math.round(clampNum(merged.flagTarget, 1, 15, base.flagTarget)),
   };
