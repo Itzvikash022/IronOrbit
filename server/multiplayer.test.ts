@@ -264,7 +264,7 @@ test('PowerUpManager caps active boosts at 3 and waits full interval before repl
   assert.equal(crates.length, 3);
 });
 
-test('action release flips rotationDir even at zero ammo and DM/CTF milestones end match immediately', async () => {
+test('shoot press flips rotationDir even at zero ammo and DM/CTF milestones end match immediately', async () => {
   const httpServer = http.createServer();
   const io = new SocketIOServer(httpServer, { cors: { origin: '*' } });
   const roomManager = attachSocketServer(io);
@@ -304,7 +304,7 @@ test('action release flips rotationDir even at zero ammo and DM/CTF milestones e
     const started = await startPromise;
     assert.equal(started.snapshot.tanks.find((t) => t.id === 'm1')!.rotationDir, 1);
 
-    // Exhaust all 3 shells via shoot (no longer flips on shoot)
+    // Exhaust all 3 shells (3 presses = odd) -> settle -> direction flips to -1
     for (let i = 0; i < 3; i++) {
       p1.emit('player:shoot', { aimAngle: 0 });
       await new Promise((r) => setTimeout(r, 310));
@@ -313,32 +313,18 @@ test('action release flips rotationDir even at zero ammo and DM/CTF milestones e
     const emptySnap = await new Promise<MatchSnapshot>((resolve) => {
       const handler = (snap: MatchSnapshot) => {
         const t = snap.tanks.find((x) => x.id === 'm1')!;
-        if (t.ammo === 0) {
+        if (t.ammo === 0 && t.rotationDir === -1) {
           p1.off('match:snapshot', handler);
           resolve(snap);
         }
       };
       p1.on('match:snapshot', handler);
     });
-    assert.equal(emptySnap.tanks.find((t) => t.id === 'm1')!.ammo, 0);
-    assert.equal(emptySnap.tanks.find((t) => t.id === 'm1')!.rotationDir, 1);
+    assert.equal(emptySnap.tanks.find((t) => t.id === 'm1')!.rotationDir, -1);
 
-    // Action release flips even at 0 ammo
-    p1.emit('player:flip');
+    // Press once more at 0 ammo -> still flips back to +1 after settle
+    p1.emit('player:shoot', { aimAngle: 0 });
     const flippedEmptySnap = await new Promise<MatchSnapshot>((resolve) => {
-      const handler = (snap: MatchSnapshot) => {
-        const t = snap.tanks.find((x) => x.id === 'm1')!;
-        if (t.rotationDir === -1) {
-          p1.off('match:snapshot', handler);
-          resolve(snap);
-        }
-      };
-      p1.on('match:snapshot', handler);
-    });
-    assert.equal(flippedEmptySnap.tanks.find((t) => t.id === 'm1')!.rotationDir, -1);
-
-    p1.emit('player:flip');
-    const flippedBackSnap = await new Promise<MatchSnapshot>((resolve) => {
       const handler = (snap: MatchSnapshot) => {
         const t = snap.tanks.find((x) => x.id === 'm1')!;
         if (t.rotationDir === 1) {
@@ -348,7 +334,7 @@ test('action release flips rotationDir even at zero ammo and DM/CTF milestones e
       };
       p1.on('match:snapshot', handler);
     });
-    assert.equal(flippedBackSnap.tanks.find((t) => t.id === 'm1')!.rotationDir, 1);
+    assert.equal(flippedEmptySnap.tanks.find((t) => t.id === 'm1')!.rotationDir, 1);
 
     // Force milestone condition on room directly via tank kills to verify instant match:ended
     const ctx = roomManager.getRoomBySocket(p1.id!)!;

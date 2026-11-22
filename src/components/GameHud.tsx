@@ -407,7 +407,7 @@ export const GameHud: React.FC<GameHudProps> = ({
         )}
 
         <div className="hidden sm:block text-[10px] text-slate-400/60">
-          Esc Menu · Tab Board · Hold Drive+Fire · Release Flip
+          Esc Menu · Tab Board · Tap Fire+Flip · Hold Drive
         </div>
       </div>
     </div>

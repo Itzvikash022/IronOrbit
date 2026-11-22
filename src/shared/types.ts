@@ -131,7 +131,7 @@ export interface ClientPreferences {
   soundVolume: number; // 0..1
   muted: boolean;
   graphicsQuality: GraphicsQuality;
-  /** Hold = drive + auto-fire; release = flip spin. Default Space. */
+  /** Tap = fire + flip; hold = drive only. Default Space. */
   actionBind: ActionBind;
 }
 

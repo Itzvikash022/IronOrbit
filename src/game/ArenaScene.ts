@@ -4,7 +4,6 @@ import { DEFAULT_GAME_SETTINGS, POWERUP_META } from '../shared/config';
 import { ARENA_MAPS } from '../shared/maps';
 import {
   computeArenaCameraZoom,
-  getShootSettleMs,
   normalizeAngle,
   registerFireClick,
   RotationFlipState,
@@ -60,7 +59,6 @@ interface ClientProjectileVisual {
 export interface ArenaSceneBridge {
   onSendInput: (input: PlayerInputState) => void;
   onSendShoot: (aimAngle: number) => void;
-  onSendFlip: () => void;
 }
 
 export class ArenaScene extends Phaser.Scene {
@@ -98,7 +96,6 @@ export class ArenaScene extends Phaser.Scene {
   private inputSeq = 0;
   private lastSentInputAt = 0;
   private lastSentThrust = false;
-  private lastAutoFireAt = 0;
   private localFlipState: RotationFlipState = { pendingClicks: 0, lastClickAt: 0 };
   private lastLocalFlipResolvedAt = 0;
 
@@ -229,25 +226,15 @@ export class ArenaScene extends Phaser.Scene {
   private pressAction(): void {
     if (this.actionHeld) return;
     this.actionHeld = true;
-    this.fireForward();
-    this.lastAutoFireAt = performance.now();
+    // Press edge = old mouse click: one shell + flip request. Hold only drives.
+    if (this.localPredTank?.alive) {
+      registerFireClick(this.localFlipState, performance.now());
+      this.bridge?.onSendShoot(this.localPredTank.angle);
+    }
   }
 
-  private releaseAction(flip: boolean): void {
-    if (!this.actionHeld) return;
+  private releaseAction(_flip: boolean): void {
     this.actionHeld = false;
-    if (!flip || !this.inputEnabled || this.sceneMode !== 'active') return;
-    if (!this.localPredTank?.alive) return;
-    const now = performance.now();
-    registerFireClick(this.localFlipState, now);
-    // Apply on the next sim step so spin reverses as soon as drive ends
-    this.localFlipState.lastClickAt = now - getShootSettleMs(this.settings);
-    this.bridge?.onSendFlip();
-  }
-
-  private fireForward(): void {
-    if (!this.localPredTank || !this.localPredTank.alive) return;
-    this.bridge?.onSendShoot(this.localPredTank.angle);
   }
 
   enterAttractMode(mapId: MapId = 'industrial'): void {
@@ -322,7 +309,6 @@ export class ArenaScene extends Phaser.Scene {
   resyncSnapshot(snapshot: MatchSnapshot): void {
     if (this.sceneMode !== 'active') return;
     this.actionHeld = false;
-    this.lastAutoFireAt = 0;
     this.lastSentThrust = false;
     this.localFlipState = { pendingClicks: 0, lastClickAt: 0 };
     this.localPredTank = null;
@@ -669,15 +655,6 @@ export class ArenaScene extends Phaser.Scene {
           this.settings,
           serverNow
         );
-      }
-
-      // Hold = keep topping up fire requests; server cooldown gates real shots
-      if (this.actionHeld && this.inputEnabled && this.localPredTank.alive) {
-        const fireGap = Math.max(40, this.settings.fireCooldownMs * 0.45);
-        if (nowPerf - this.lastAutoFireAt >= fireGap) {
-          this.lastAutoFireAt = nowPerf;
-          this.fireForward();
-        }
       }
 
       if (

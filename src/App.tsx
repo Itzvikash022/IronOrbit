@@ -173,7 +173,6 @@ export default function App() {
     arenaScene.setBridge({
       onSendInput: (input) => networkClient.sendInput(input),
       onSendShoot: (aimAngle) => networkClient.sendShoot(aimAngle),
-      onSendFlip: () => networkClient.sendFlip(),
     });
     arenaScene.setActionBind(preferences.actionBind);
 

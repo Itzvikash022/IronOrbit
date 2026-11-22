@@ -379,11 +379,6 @@ export class NetworkClient {
     this.socket.emit('player:shoot', { aimAngle });
   }
 
-  sendFlip(): void {
-    if (!this.socket?.connected) return;
-    this.socket.emit('player:flip');
-  }
-
   measurePing(cb: (ms: number) => void): void {
     if (!this.socket || !this.socket.connected) return;
     const t0 = performance.now();

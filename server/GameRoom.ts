@@ -7,7 +7,6 @@ import {
 } from '../src/shared/config.ts';
 import { ARENA_MAPS, getRandomMapId } from '../src/shared/maps.ts';
 import {
-  getShootSettleMs,
   hasPowerUp,
   registerFireClick,
   type RotationFlipState,
@@ -471,24 +470,14 @@ export class GameRoom {
     if (!playerId) return;
     const session = this.sessions.get(playerId);
     if (!session) return;
-    // Flip is no longer tied to shoot — action-key release calls handleFlip
+    const tank = this.tanks.find((t) => t.id === playerId);
+    if (tank?.alive) {
+      // Each action-key press flips spin (parity) even at 0 ammo / on cooldown
+      registerFireClick(session.flipState, Date.now());
+    }
     if (session.pendingShots < 3) {
       session.pendingShots += 1;
     }
-  }
-
-  handleFlip(socketId: string): void {
-    if (this.status !== 'playing') return;
-    const playerId = this.socketToPlayer.get(socketId);
-    if (!playerId) return;
-    const session = this.sessions.get(playerId);
-    if (!session) return;
-    const tank = this.tanks.find((t) => t.id === playerId);
-    if (!tank?.alive) return;
-    const now = Date.now();
-    registerFireClick(session.flipState, now);
-    // Reverse spin as soon as drive ends (client already flipped locally)
-    session.flipState.lastClickAt = now - getShootSettleMs(this.settings);
   }
 
   getRoomInfo(): RoomInfo {

@@ -176,8 +176,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       Drive / Fire Key
                     </div>
                     <p className="text-[11px] text-slate-400 mt-1 leading-snug">
-                      Hold to drive and keep firing. Release to flip spin direction. Tap once to
-                      fire a single shell and flip.
+                      Tap to fire one shell and flip spin. Hold to drive straight without
+                      shooting. Spam taps to fire more shells.
                     </p>
                   </div>
                   <button
