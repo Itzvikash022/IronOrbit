@@ -79,13 +79,14 @@ test('all 7 arena maps have non-overlapping spawns, bases, and crate zones', () 
 
 test('tank rotates continuously while idle, locks angle during Spacebar thrust, and resumes rotating on release', () => {
   const map = ARENA_MAPS.desert;
-  const tank = makeTank({ x: 900, y: 300, angle: 0 });
+  const startX = Math.round(map.width * 0.35);
+  const tank = makeTank({ x: startX, y: 300, angle: 0 });
   const initialAngle = tank.angle;
 
   // Idle -> rotates continuously, does not move
   stepTankMotion(tank, false, 0.25, map, DEFAULT_GAME_SETTINGS, 1000);
   assert.ok(tank.angle > initialAngle, 'tank should auto-rotate while Spacebar is not held');
-  assert.equal(tank.x, 900);
+  assert.equal(tank.x, startX);
   assert.equal(tank.y, 300);
 
   // Hold Spacebar -> angle locks and tank drives straight along locked angle
@@ -139,13 +140,13 @@ test('projectile detects wall collision, tank collision, and max range', () => {
   assert.equal(wallRes.expired, true);
   assert.equal(wallRes.hitWall, true);
 
-  const enemy = makeTank({ id: 'p2', x: 500, y: 300 });
+  const enemy = makeTank({ id: 'p2', x: 200, y: 80 });
   const hitProj: ProjectileEntity = {
     id: 'b2',
     ownerId: 'p1',
     team: 'none',
-    x: 475,
-    y: 300,
+    x: 160,
+    y: 80,
     vx: 720,
     vy: 0,
     damage: 25,
@@ -160,7 +161,7 @@ test('projectile detects wall collision, tank collision, and max range', () => {
 
 test('selectSafeSpawn picks spawn farthest from living enemy and crate placement avoids obstacles', () => {
   const map = ARENA_MAPS.desert;
-  const enemy = makeTank({ id: 'e1', x: 150, y: 150, alive: true });
+  const enemy = makeTank({ id: 'e1', x: map.ffaSpawns[0].x, y: map.ffaSpawns[0].y, alive: true });
   const spawn = selectSafeSpawn(map.ffaSpawns, [enemy], map.obstacles);
   assert.ok(Math.hypot(spawn.x - enemy.x, spawn.y - enemy.y) > 800);
 
@@ -171,16 +172,16 @@ test('selectSafeSpawn picks spawn farthest from living enemy and crate placement
   }
 });
 
-test('computeArenaCameraZoom fits the entire arena inside the viewport', () => {
-  const z1440 = computeArenaCameraZoom(1440, 900, 1800, 1200);
-  assert.ok(Math.abs(z1440 - Math.min(1440 / 1800, 900 / 1200)) < 1e-9);
+test('computeArenaCameraZoom covers the viewport without black bars', () => {
+  const z1440 = computeArenaCameraZoom(1440, 900, 2880, 1200);
+  assert.ok(Math.abs(z1440 - Math.max(1440 / 2880, 900 / 1200)) < 1e-9);
 
-  const z1280 = computeArenaCameraZoom(1280, 720, 1800, 1200);
-  assert.ok(Math.abs(z1280 - Math.min(1280 / 1800, 720 / 1200)) < 1e-9);
+  const z1280 = computeArenaCameraZoom(1280, 720, 2880, 1200);
+  assert.ok(Math.abs(z1280 - Math.max(1280 / 2880, 720 / 1200)) < 1e-9);
 
-  // Zoomed view should never crop the map (visible world >= map extents)
-  assert.ok(1440 / z1440 >= 1800 - 1e-6);
-  assert.ok(900 / z1440 >= 1200 - 1e-6);
+  // Visible world never exceeds the viewport on either axis
+  assert.ok(1440 / z1440 <= 2880 + 1e-6);
+  assert.ok(900 / z1440 <= 1200 + 1e-6);
 });
 
 test('click-to-flip rotation waits for shooting to stop, respects click parity on spam, and applies when rotation resumes', () => {

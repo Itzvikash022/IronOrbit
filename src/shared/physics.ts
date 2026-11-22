@@ -113,7 +113,10 @@ export function hasPowerUp(
   return tank.activePowerUps.some((p) => p.type === type && p.expiresAt > nowMs);
 }
 
-/** Fit the entire arena inside the viewport (100% map visible). */
+/**
+ * Cover the viewport with the arena (no black letterbox bars).
+ * Wide maps (~21:9) keep almost the full playfield visible on common screens.
+ */
 export function computeArenaCameraZoom(
   viewportW: number,
   viewportH: number,
@@ -123,7 +126,7 @@ export function computeArenaCameraZoom(
   const vw = Math.max(320, viewportW);
   const vh = Math.max(240, viewportH);
   if (mapW <= 0 || mapH <= 0) return 1;
-  return Math.min(vw / mapW, vh / mapH);
+  return Math.max(vw / mapW, vh / mapH);
 }
 
 export interface RotationFlipState {
