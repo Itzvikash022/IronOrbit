@@ -116,8 +116,8 @@ export function hasPowerUp(
 }
 
 /**
- * Cover the viewport with the arena (no black letterbox bars).
- * Wide maps (~21:9) keep almost the full playfield visible on common screens.
+ * Cover the viewport with the arena (no letterbox / no floor outside the border).
+ * Extreme aspect ratios may crop a little of the map edges.
  */
 export function computeArenaCameraZoom(
   viewportW: number,
@@ -128,8 +128,7 @@ export function computeArenaCameraZoom(
   const vw = Math.max(320, viewportW);
   const vh = Math.max(240, viewportH);
   if (mapW <= 0 || mapH <= 0) return 1;
-  // Contain: the whole map is always visible; leftover space is filled with extended floor.
-  return Math.min(vw / mapW, vh / mapH);
+  return Math.max(vw / mapW, vh / mapH);
 }
 
 export interface RotationFlipState {

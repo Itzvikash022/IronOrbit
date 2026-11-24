@@ -3,6 +3,7 @@ export class SoundManager {
   private masterGain: GainNode | null = null;
   private volume = 0.65;
   private muted = false;
+  private lastFireAtMs = 0;
 
   private ensureContext(): AudioContext | null {
     if (this.muted) return null;
@@ -57,6 +58,9 @@ export class SoundManager {
   }
 
   playFire(isDouble = false): void {
+    const wallNow = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (wallNow - this.lastFireAtMs < 80) return;
+    this.lastFireAtMs = wallNow;
     const ctx = this.ensureContext();
     if (!ctx || !this.masterGain) return;
     const now = ctx.currentTime;

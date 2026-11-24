@@ -603,8 +603,10 @@ export class GameRoom {
     if (!session) return;
     const tank = this.tanks.find((t) => t.id === playerId);
     if (tank?.alive) {
-      // Each action-key press flips spin (parity) even at 0 ammo / on cooldown
-      registerFireClick(session.flipState, Date.now());
+      // Cap flip backlog under spam; still flip on accepted presses
+      if (session.flipState.pendingClicks < 6) {
+        registerFireClick(session.flipState, Date.now());
+      }
     }
     if (session.pendingShots < 3) {
       session.pendingShots += 1;

@@ -618,57 +618,103 @@ export function generateGameTextures(scene: Phaser.Scene): void {
           ctx.fill();
         }
       } else if (id === 'sentinel') {
-        // Concrete slabs with expansion joints and hazard-stripe studs
-        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        // Plate-steel hangar deck with panel seams + caution chevrons
+        for (let gy = 0; gy < 256; gy += 64) {
+          for (let gx = 0; gx < 256; gx += 64) {
+            const shade = (gx + gy) % 128 === 0 ? map.palette.groundDetail : map.palette.groundBase;
+            ctx.fillStyle = shade;
+            ctx.fillRect(gx + 1, gy + 1, 62, 62);
+            ctx.strokeStyle = 'rgba(15,23,42,0.45)';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(gx + 1, gy + 1, 62, 62);
+            ctx.fillStyle = 'rgba(148,163,184,0.2)';
+            ctx.fillRect(gx + 6, gy + 6, 3, 3);
+            ctx.fillRect(gx + 55, gy + 6, 3, 3);
+            ctx.fillRect(gx + 6, gy + 55, 3, 3);
+            ctx.fillRect(gx + 55, gy + 55, 3, 3);
+          }
+        }
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.28)';
+        for (let k = 0; k < 8; k++) {
+          ctx.fillRect(16 + k * 14, 118, 8, 5);
+          ctx.fillRect(16 + k * 14, 134, 8, 5);
+        }
+        ctx.strokeStyle = 'rgba(250,204,21,0.35)';
         ctx.lineWidth = 2;
-        ctx.strokeRect(1, 1, 126, 126);
-        ctx.strokeRect(129, 1, 126, 126);
-        ctx.strokeRect(1, 129, 126, 126);
-        ctx.strokeRect(129, 129, 126, 126);
-        ctx.fillStyle = map.palette.groundAccent;
-        for (let i = 0; i < 10; i++) {
-          ctx.fillRect(rand(i + 3) * 240 + 6, rand(i + 33) * 240 + 6, 3, 3);
-        }
-        ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
-        for (let k = 0; k < 4; k++) {
-          ctx.fillRect(10 + k * 10, 120, 6, 4);
-        }
+        ctx.strokeRect(12, 112, 232, 32);
       } else if (id === 'overgrowth') {
-        for (let i = 0; i < 30; i++) {
+        // Mossy soil with leaf litter and soft grass tufts
+        for (let i = 0; i < 40; i++) {
           ctx.fillStyle = i % 3 === 0 ? map.palette.groundAccent : map.palette.groundDetail;
           ctx.beginPath();
-          ctx.ellipse(rand(i + 2) * 250 + 3, rand(i + 52) * 250 + 3, 3 + rand(i + 92) * 7, 2 + rand(i + 132) * 4, rand(i + 172) * Math.PI, 0, Math.PI * 2);
+          ctx.ellipse(
+            rand(i + 2) * 250 + 3,
+            rand(i + 52) * 250 + 3,
+            4 + rand(i + 92) * 9,
+            2.5 + rand(i + 132) * 5,
+            rand(i + 172) * Math.PI,
+            0,
+            Math.PI * 2
+          );
           ctx.fill();
         }
         ctx.strokeStyle = map.palette.groundAccent;
-        ctx.lineWidth = 1.3;
-        for (let i = 0; i < 16; i++) {
+        ctx.lineWidth = 1.4;
+        for (let i = 0; i < 28; i++) {
           const sx = rand(i + 600) * 250;
           const sy = rand(i + 640) * 250;
           ctx.beginPath();
           ctx.moveTo(sx, sy);
-          ctx.lineTo(sx + (rand(i + 680) - 0.5) * 8, sy - 6 - rand(i + 720) * 5);
+          ctx.quadraticCurveTo(
+            sx + (rand(i + 680) - 0.5) * 6,
+            sy - 4,
+            sx + (rand(i + 700) - 0.5) * 10,
+            sy - 8 - rand(i + 720) * 6
+          );
           ctx.stroke();
         }
-      } else if (id === 'blastyard') {
-        ctx.fillStyle = map.palette.groundAccent;
-        for (let i = 0; i < 30; i++) {
-          ctx.fillRect(rand(i + 4) * 252, rand(i + 44) * 252, 2 + rand(i + 84) * 2, 2);
-        }
-        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.moveTo(0, 70);
-        ctx.lineTo(256, 84);
-        ctx.moveTo(0, 150);
-        ctx.lineTo(256, 164);
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(0,0,0,0.20)';
-        for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = 'rgba(34, 97, 58, 0.22)';
+        for (let i = 0; i < 8; i++) {
           ctx.beginPath();
-          ctx.arc(rand(i + 800) * 230 + 12, rand(i + 820) * 230 + 12, 10 + rand(i + 840) * 12, 0, Math.PI * 2);
+          ctx.arc(rand(i + 900) * 240 + 8, rand(i + 920) * 240 + 8, 10 + rand(i + 940) * 14, 0, Math.PI * 2);
           ctx.fill();
-        }      } else if (id === 'lava') {
+        }
+      } else if (id === 'blastyard') {
+        // Scorched asphalt with tire scars and blast pits
+        ctx.fillStyle = map.palette.groundDetail;
+        for (let i = 0; i < 18; i++) {
+          ctx.fillRect(rand(i + 4) * 248, rand(i + 44) * 248, 8 + rand(i + 84) * 18, 3);
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(0, 68);
+        ctx.lineTo(256, 90);
+        ctx.moveTo(0, 158);
+        ctx.lineTo(256, 172);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(248, 113, 113, 0.18)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(20, 0);
+        ctx.lineTo(40, 256);
+        ctx.moveTo(200, 0);
+        ctx.lineTo(180, 256);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        for (let i = 0; i < 6; i++) {
+          ctx.beginPath();
+          ctx.arc(rand(i + 800) * 230 + 12, rand(i + 820) * 230 + 12, 12 + rand(i + 840) * 16, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(120, 53, 15, 0.35)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        ctx.fillStyle = map.palette.groundAccent;
+        for (let i = 0; i < 40; i++) {
+          ctx.fillRect(rand(i + 1000) * 252, rand(i + 1040) * 252, 2, 2);
+        }
+      } else if (id === 'lava') {
         ctx.fillStyle = map.palette.groundDetail;
         for (let i = 0; i < 10; i++) {
           ctx.beginPath();

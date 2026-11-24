@@ -10,6 +10,7 @@ import {
   stepRotationFlip,
   stepTankMotion,
 } from '../shared/physics';
+import { canTankFire } from '../shared/rules';
 import {
   ActionBind,
   FlagEntity,
@@ -97,6 +98,7 @@ export class ArenaScene extends Phaser.Scene {
   private tankVisuals = new Map<string, RemoteInterpState>();
   private crateVisuals = new Map<string, CrateVisual>();
   private projectileVisuals = new Map<string, ClientProjectileVisual>();
+  private projectilePool: Phaser.GameObjects.Image[] = [];
   private redFlagSprite?: Phaser.GameObjects.Image;
   private blueFlagSprite?: Phaser.GameObjects.Image;
   private muzzleFlash?: Phaser.GameObjects.Image;
@@ -107,6 +109,8 @@ export class ArenaScene extends Phaser.Scene {
   private inputSeq = 0;
   private lastSentInputAt = 0;
   private lastSentThrust = false;
+  private pendingLocalShots = 0;
+  private lastShootSentAt = 0;
   private localFlipState: RotationFlipState = { pendingClicks: 0, lastClickAt: 0 };
   private lastLocalFlipResolvedAt = 0;
 
@@ -247,8 +251,16 @@ export class ArenaScene extends Phaser.Scene {
     if (this.actionHeld) return;
     this.actionHeld = true;
     // Press edge = old mouse click: one shell + flip request. Hold only drives.
-    if (this.localPredTank?.alive) {
-      registerFireClick(this.localFlipState, performance.now());
+    if (!this.localPredTank?.alive) return;
+    const nowPerf = performance.now();
+    registerFireClick(this.localFlipState, nowPerf);
+    const serverNow = nowPerf + this.serverTimeOffset;
+    const canFire =
+      this.pendingLocalShots < 2 && canTankFire(this.localPredTank, serverNow, this.settings);
+    // Always sync flip via shoot when fireable; otherwise throttle flip-only spam.
+    if (canFire || nowPerf - this.lastShootSentAt >= 90) {
+      if (canFire) this.pendingLocalShots += 1;
+      this.lastShootSentAt = nowPerf;
       this.bridge?.onSendShoot(this.localPredTank.angle);
     }
   }
@@ -265,7 +277,7 @@ export class ArenaScene extends Phaser.Scene {
     this.activeMapId = mapId;
     const map = ARENA_MAPS[mapId];
     this.mapRenderer.render(map, 'ctf');
-    this.cameras.main.setBounds(-4000, -4000, map.width + 8000, map.height + 8000);
+    this.cameras.main.setBounds(0, 0, map.width, map.height);
     this.applyCameraZoom(map.width, map.height);
     this.redFlagSprite?.setVisible(true).setPosition(map.redBase.x, map.redBase.y);
     this.blueFlagSprite?.setVisible(true).setPosition(map.blueBase.x, map.blueBase.y);
@@ -310,7 +322,7 @@ export class ArenaScene extends Phaser.Scene {
 
     const map = ARENA_MAPS[mapId];
     this.mapRenderer.render(map, mode);
-    this.cameras.main.setBounds(-4000, -4000, map.width + 8000, map.height + 8000);
+    this.cameras.main.setBounds(0, 0, map.width, map.height);
     this.applyCameraZoom(map.width, map.height);
 
     this.camFollowX = map.width * 0.5;
@@ -349,7 +361,7 @@ export class ArenaScene extends Phaser.Scene {
       this.activeGameMode = snapshot.mode;
       const map = ARENA_MAPS[snapshot.mapId];
       this.mapRenderer.render(map, snapshot.mode);
-      this.cameras.main.setBounds(-4000, -4000, map.width + 8000, map.height + 8000);
+      this.cameras.main.setBounds(0, 0, map.width, map.height);
       this.applyCameraZoom(map.width, map.height);
     }
 
@@ -404,6 +416,10 @@ export class ArenaScene extends Phaser.Scene {
           this.localPredTank.maxHp = srvTank.maxHp;
           this.localPredTank.ammo = srvTank.ammo;
           this.localPredTank.maxAmmo = srvTank.maxAmmo;
+          if (this.pendingLocalShots > 0 && srvTank.lastShotAt !== this.localPredTank.lastShotAt) {
+            this.pendingLocalShots = Math.max(0, this.pendingLocalShots - 1);
+          }
+          this.localPredTank.lastShotAt = srvTank.lastShotAt;
           this.localPredTank.ammoRegenProgress = srvTank.ammoRegenProgress;
           this.localPredTank.invincibleUntil = srvTank.invincibleUntil;
           this.localPredTank.stunnedUntil = srvTank.stunnedUntil;
@@ -465,17 +481,21 @@ export class ArenaScene extends Phaser.Scene {
       }
     }
 
-    // Sync projectiles
+    // Sync projectiles (reuse pooled sprites)
     const activeProjIds = new Set<string>();
     for (const p of snapshot.projectiles) {
       activeProjIds.add(p.id);
       let vis = this.projectileVisuals.get(p.id);
       if (!vis) {
-        const sprite = this.add
-          .image(p.x, p.y, p.isDoubleDamage ? 'proj_double' : 'proj_normal')
-          .setDepth(20)
-          .setScale(1.15)
-          .setRotation(Math.atan2(p.vy, p.vx));
+        const sprite =
+          this.projectilePool.pop() ??
+          this.add.image(0, 0, 'proj_normal').setDepth(20).setScale(1.15);
+        sprite
+          .setTexture(p.isDoubleDamage ? 'proj_double' : 'proj_normal')
+          .setPosition(p.x, p.y)
+          .setRotation(Math.atan2(p.vy, p.vx))
+          .setVisible(true)
+          .setActive(true);
         vis = { sprite, x: p.x, y: p.y, vx: p.vx, vy: p.vy };
         this.projectileVisuals.set(p.id, vis);
       } else {
@@ -483,12 +503,16 @@ export class ArenaScene extends Phaser.Scene {
         vis.y = p.y;
         vis.vx = p.vx;
         vis.vy = p.vy;
-        vis.sprite.setPosition(p.x, p.y);
+        vis.sprite
+          .setTexture(p.isDoubleDamage ? 'proj_double' : 'proj_normal')
+          .setPosition(p.x, p.y)
+          .setRotation(Math.atan2(p.vy, p.vx));
       }
     }
     for (const [id, vis] of this.projectileVisuals.entries()) {
       if (!activeProjIds.has(id)) {
-        vis.sprite.destroy();
+        vis.sprite.setVisible(false).setActive(false);
+        this.projectilePool.push(vis.sprite);
         this.projectileVisuals.delete(id);
       }
     }
@@ -543,8 +567,9 @@ export class ArenaScene extends Phaser.Scene {
     const entry = this.tankVisuals.get(shooterId);
     entry?.sprite.triggerRecoil();
 
-    // Muzzle flash + directional sparks
+    // Muzzle flash + directional sparks (single tween; kill prior to avoid stacking)
     if (this.muzzleFlash) {
+      this.tweens.killTweensOf(this.muzzleFlash);
       this.muzzleFlash
         .setPosition(proj.x, proj.y)
         .setRotation(aimAngle)
@@ -902,9 +927,15 @@ export class ArenaScene extends Phaser.Scene {
     this.crateVisuals.clear();
 
     for (const vis of this.projectileVisuals.values()) {
-      vis.sprite.destroy();
+      vis.sprite.setVisible(false).setActive(false);
+      this.projectilePool.push(vis.sprite);
     }
     this.projectileVisuals.clear();
+    for (const sprite of this.projectilePool) {
+      sprite.destroy();
+    }
+    this.projectilePool = [];
+    this.pendingLocalShots = 0;
 
     this.localPredTank = null;
     this.latestSnapshot = null;

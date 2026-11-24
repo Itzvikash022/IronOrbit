@@ -97,11 +97,12 @@ export const Minimap: React.FC<MinimapProps> = ({ snapshot, localPlayerId }) => 
         map.width,
         map.height
       );
+      // Cover zoom: viewport is map-sized or smaller; center on arena mid (match ArenaScene)
       const vw = Math.min(map.width, window.innerWidth / zoom);
       const vh = Math.min(map.height, window.innerHeight / zoom);
       if (vw < map.width - 4 || vh < map.height - 4) {
-        const camX = Math.max(0, Math.min(map.width - vw, localTank.x - vw / 2));
-        const camY = Math.max(0, Math.min(map.height - vh, localTank.y - vh / 2));
+        const camX = Math.max(0, Math.min(map.width - vw, map.width * 0.5 - vw / 2));
+        const camY = Math.max(0, Math.min(map.height - vh, map.height * 0.5 - vh / 2));
         ctx.strokeStyle = 'rgba(226, 232, 240, 0.35)';
         ctx.lineWidth = 1;
         ctx.strokeRect(

@@ -6,6 +6,7 @@ import { MatchResultsModal } from './components/MatchResultsModal';
 import { PauseModal } from './components/PauseModal';
 import { RoomLobby } from './components/RoomLobby';
 import { SettingsModal } from './components/SettingsModal';
+import { HomeScreen } from './components/HomeScreen';
 import { TitleScreen } from './components/TitleScreen';
 import { ArenaScene, type ArenaEnvStatus } from './game/ArenaScene';
 import { networkClient } from './network/NetworkClient';
@@ -24,7 +25,7 @@ import {
   RoomInfo,
 } from './shared/types';
 
-type ShellState = 'title' | 'lobby' | 'playing' | 'paused' | 'gameover';
+type ShellState = 'home' | 'title' | 'lobby' | 'playing' | 'paused' | 'gameover';
 
 const PREFS_STORAGE_KEY = 'iron_orbit_prefs';
 
@@ -61,8 +62,8 @@ export default function App() {
   const lastHudSnapRef = useRef<MatchSnapshot | null>(null);
   const lastHudSyncAtRef = useRef<number>(0);
 
-  const [shellState, setShellState] = useState<ShellState>('title');
-  const shellStateRef = useRef<ShellState>('title');
+  const [shellState, setShellState] = useState<ShellState>('home');
+  const shellStateRef = useRef<ShellState>('home');
   const [nickname, setNickname] = useState<string>(() => {
     if (typeof window === 'undefined') return 'Vanguard';
     return window.localStorage.getItem('iron_orbit_nick') || 'Vanguard';
@@ -95,7 +96,8 @@ export default function App() {
     document.body.dataset.state = shellState;
     if (shellState !== 'playing' && shellState !== 'paused') setEnvStatus(null);
     sceneRef.current?.setInputEnabled(shellState === 'playing' && !showSettings);
-    const shouldSleepCanvas = shellState === 'lobby' || shellState === 'gameover';
+    const shouldSleepCanvas =
+      shellState === 'home' || shellState === 'lobby' || shellState === 'gameover';
     sceneRef.current?.setAttractPaused(shouldSleepCanvas);
     if (shouldSleepCanvas) {
       phaserGameRef.current?.loop.sleep();
@@ -222,7 +224,7 @@ export default function App() {
         setMatchResult(null);
         setShowSettings(false);
         setShowLeaderboard(false);
-        setShellState('title');
+        setShellState('home');
         setError(`Session ended: ${reason}`);
         sceneRef.current?.enterAttractMode('industrial');
       },
@@ -471,8 +473,20 @@ export default function App() {
     setSnapshot(null);
     setMatchResult(null);
     setShowSettings(false);
+    setError(null);
+    setShellState('home');
+    sceneRef.current?.enterAttractMode('industrial');
+  };
+
+  const handleEnterIronOrbit = () => {
+    setError(null);
     setShellState('title');
     sceneRef.current?.enterAttractMode('industrial');
+  };
+
+  const handleBackToHome = () => {
+    setError(null);
+    setShellState('home');
   };
 
   const handleChangeMode = (mode: GameMode) => {
@@ -560,6 +574,13 @@ export default function App() {
         </div>
       )}
 
+      {shellState === 'home' && (
+        <HomeScreen
+          onSelectIronOrbit={handleEnterIronOrbit}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+      )}
+
       {shellState === 'title' && (
         <TitleScreen
           nickname={nickname}
@@ -567,6 +588,7 @@ export default function App() {
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
           onOpenSettings={() => setShowSettings(true)}
+          onBackToHome={handleBackToHome}
           error={error}
           busy={busy}
         />

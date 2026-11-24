@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Users, Plus, LogIn } from 'lucide-react';
+import { Settings, Users, Plus, LogIn, ArrowLeft } from 'lucide-react';
 import { IronOrbitLogo } from './PowerUpSvgIcon';
 
 interface TitleScreenProps {
@@ -8,6 +8,7 @@ interface TitleScreenProps {
   onCreateRoom: () => Promise<void>;
   onJoinRoom: (code: string) => Promise<void>;
   onOpenSettings: () => void;
+  onBackToHome?: () => void;
   error: string | null;
   busy: boolean;
 }
@@ -18,6 +19,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
   onCreateRoom,
   onJoinRoom,
   onOpenSettings,
+  onBackToHome,
   error,
   busy,
 }) => {
@@ -48,6 +50,16 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
 
       <div className="relative z-10 flex-1 flex items-center px-6 sm:px-14 lg:px-20">
         <div className="w-full max-w-md pointer-events-auto">
+          {onBackToHome && (
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase text-slate-400 hover:text-slate-100 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              All games
+            </button>
+          )}
           <div className="mb-8">
             <IronOrbitLogo className="w-80 h-auto" />
           </div>

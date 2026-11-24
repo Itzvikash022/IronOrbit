@@ -172,16 +172,16 @@ test('selectSafeSpawn picks spawn farthest from living enemy and crate placement
   }
 });
 
-test('computeArenaCameraZoom keeps the whole map visible', () => {
+test('computeArenaCameraZoom covers the viewport', () => {
   const z1440 = computeArenaCameraZoom(1440, 900, 2880, 1440);
-  assert.ok(Math.abs(z1440 - Math.min(1440 / 2880, 900 / 1440)) < 1e-9);
+  assert.ok(Math.abs(z1440 - Math.max(1440 / 2880, 900 / 1440)) < 1e-9);
 
   const z1280 = computeArenaCameraZoom(1280, 720, 2880, 1440);
-  assert.ok(Math.abs(z1280 - Math.min(1280 / 2880, 720 / 1440)) < 1e-9);
+  assert.ok(Math.abs(z1280 - Math.max(1280 / 2880, 720 / 1440)) < 1e-9);
 
-  // Whole map always fits in the viewport on both axes
-  assert.ok(2880 * z1440 <= 1440 + 1e-6);
-  assert.ok(1440 * z1440 <= 900 + 1e-6);
+  // Arena always covers both viewport axes (edges may crop)
+  assert.ok(2880 * z1440 + 1e-6 >= 1440);
+  assert.ok(1440 * z1440 + 1e-6 >= 900);
 });
 
 test('click-to-flip rotation waits for shooting to stop, respects click parity on spam, and applies when rotation resumes', () => {
