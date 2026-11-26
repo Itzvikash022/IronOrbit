@@ -34,7 +34,7 @@ function flagStatusText(state: 'at_base' | 'carried' | 'dropped'): string {
   return 'Dropped';
 }
 
-export const GameHud: React.FC<GameHudProps> = ({
+export const GameHud: React.FC<GameHudProps> = React.memo(({
   snapshot,
   localPlayerId,
   pingMs,
@@ -479,4 +479,4 @@ export const GameHud: React.FC<GameHudProps> = ({
       </div>
     </div>
   );
-};
+});

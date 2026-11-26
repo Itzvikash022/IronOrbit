@@ -17,6 +17,9 @@ export class TankSprite {
   private lastSkinKey = '';
   private stunGfx: Phaser.GameObjects.Graphics;
   private concealment: 'none' | 'ghost' | 'hidden' = 'none';
+  private wasHitFlashing = false;
+  private lastHpWidth = -1;
+  private lastHpColor = -1;
 
   constructor(
     private scene: Phaser.Scene,
@@ -181,15 +184,19 @@ export class TankSprite {
       this.container.setAlpha(Math.min(this.container.alpha, 0.5));
     }
 
-    // Hit flash
-    if (performance.now() < this.hitFlashUntil) {
-      this.hull.setTint(0xffffff);
-      this.hull.setTintFill();
-      this.turret.setTint(0xffffff);
-      this.turret.setTintFill();
-    } else {
-      this.hull.clearTint();
-      this.turret.clearTint();
+    // Hit flash (only call setTint / clearTint on state transitions)
+    const hitFlashing = performance.now() < this.hitFlashUntil;
+    if (hitFlashing !== this.wasHitFlashing) {
+      this.wasHitFlashing = hitFlashing;
+      if (hitFlashing) {
+        this.hull.setTint(0xffffff);
+        this.hull.setTintFill();
+        this.turret.setTint(0xffffff);
+        this.turret.setTintFill();
+      } else {
+        this.hull.clearTint();
+        this.turret.clearTint();
+      }
     }
 
     // Carried flag indicator
@@ -201,12 +208,18 @@ export class TankSprite {
       this.flagBadge.setVisible(false);
     }
 
-    // Health bar fill
+    // Health bar fill (only update displaySize/color when changed)
     const ratio = Math.max(0, Math.min(1, tank.hp / tank.maxHp));
-    this.hpFill.setDisplaySize(42 * ratio, 4);
-    this.hpFill.setFillStyle(
-      ratio > 0.55 ? 0x10b981 : ratio > 0.25 ? 0xf59e0b : 0xef4444
-    );
+    const hpW = Math.round(42 * ratio * 2) / 2;
+    const hpCol = ratio > 0.55 ? 0x10b981 : ratio > 0.25 ? 0xf59e0b : 0xef4444;
+    if (hpW !== this.lastHpWidth) {
+      this.lastHpWidth = hpW;
+      this.hpFill.setDisplaySize(hpW, 4);
+    }
+    if (hpCol !== this.lastHpColor) {
+      this.lastHpColor = hpCol;
+      this.hpFill.setFillStyle(hpCol);
+    }
   }
 
   destroy(): void {

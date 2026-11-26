@@ -192,7 +192,7 @@ export default function App() {
       backgroundColor: '#0b0f14',
       scale: {
         mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
+        autoCenter: Phaser.Scale.NO_CENTER,
       },
       scene: [arenaScene],
     });
@@ -275,7 +275,7 @@ export default function App() {
           localPrev?.deaths !== localNext?.deaths ||
           localPrev?.score !== localNext?.score ||
           (localPrev?.activePowerUps.length ?? 0) !== (localNext?.activePowerUps.length ?? 0) ||
-          now - lastHudSyncAtRef.current >= 100;
+          now - lastHudSyncAtRef.current >= 200;
 
         if (changedDiscrete) {
           lastHudSnapRef.current = snap;
@@ -550,7 +550,7 @@ export default function App() {
       <div
         ref={phaserMountRef}
         data-testid="arena-canvas"
-        className="fixed inset-0 z-0"
+        className="fixed inset-0 w-screen h-screen overflow-hidden z-0"
       />
 
       {versionMismatch && (

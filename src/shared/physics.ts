@@ -116,19 +116,29 @@ export function hasPowerUp(
 }
 
 /**
- * Cover the viewport with the arena (no letterbox / no floor outside the border).
- * Extreme aspect ratios may crop a little of the map edges.
+ * Stretch/fit camera zoom independently on X and Y so the entire arena [0..mapW]x[0..mapH]
+ * always fills 100% of the viewport with zero outside-border void or cropped edges.
  */
+export function computeArenaCameraScale(
+  viewportW: number,
+  viewportH: number,
+  mapW: number,
+  mapH: number
+): { zoomX: number; zoomY: number } {
+  const vw = Math.max(320, viewportW);
+  const vh = Math.max(240, viewportH);
+  if (mapW <= 0 || mapH <= 0) return { zoomX: 1, zoomY: 1 };
+  return { zoomX: vw / mapW, zoomY: vh / mapH };
+}
+
 export function computeArenaCameraZoom(
   viewportW: number,
   viewportH: number,
   mapW: number,
   mapH: number
 ): number {
-  const vw = Math.max(320, viewportW);
-  const vh = Math.max(240, viewportH);
-  if (mapW <= 0 || mapH <= 0) return 1;
-  return Math.max(vw / mapW, vh / mapH);
+  const { zoomX, zoomY } = computeArenaCameraScale(viewportW, viewportH, mapW, mapH);
+  return Math.min(zoomX, zoomY);
 }
 
 export interface RotationFlipState {
@@ -269,7 +279,8 @@ export function segmentIntersectsRect(
   y1: number,
   x2: number,
   y2: number,
-  rect: Rect
+  rect: Rect,
+  pad = 0
 ): boolean {
   // Liang-Barsky line-segment vs AABB intersection
   const dx = x2 - x1;
@@ -277,20 +288,20 @@ export function segmentIntersectsRect(
   let t0 = 0;
   let t1 = 1;
 
-  const p = [-dx, dx, -dy, dy];
-  const q = [
-    x1 - rect.x,
-    rect.x + rect.w - x1,
-    y1 - rect.y,
-    rect.y + rect.h - y1,
-  ];
+  const rx = rect.x - pad;
+  const ry = rect.y - pad;
+  const rw = rect.w + pad * 2;
+  const rh = rect.h + pad * 2;
 
   for (let i = 0; i < 4; i++) {
-    if (p[i] === 0) {
-      if (q[i] < 0) return false;
+    const pVal = i === 0 ? -dx : i === 1 ? dx : i === 2 ? -dy : dy;
+    const qVal =
+      i === 0 ? x1 - rx : i === 1 ? rx + rw - x1 : i === 2 ? y1 - ry : ry + rh - y1;
+    if (pVal === 0) {
+      if (qVal < 0) return false;
     } else {
-      const t = q[i] / p[i];
-      if (p[i] < 0) {
+      const t = qVal / pVal;
+      if (pVal < 0) {
         if (t > t1) return false;
         if (t > t0) t0 = t;
       } else {
@@ -376,16 +387,10 @@ export function stepProjectile(
     };
   }
 
-  // Check obstacle hit (expanded slightly by projectile radius)
+  // Check obstacle hit (expanded slightly by projectile radius, zero heap alloc)
   for (let i = 0; i < map.obstacles.length; i++) {
     const obs = map.obstacles[i];
-    const expanded: Rect = {
-      x: obs.x - PROJECTILE_RADIUS,
-      y: obs.y - PROJECTILE_RADIUS,
-      w: obs.w + PROJECTILE_RADIUS * 2,
-      h: obs.h + PROJECTILE_RADIUS * 2,
-    };
-    if (segmentIntersectsRect(prevX, prevY, nextX, nextY, expanded)) {
+    if (segmentIntersectsRect(prevX, prevY, nextX, nextY, obs, PROJECTILE_RADIUS)) {
       return {
         expired: true,
         hitWall: true,

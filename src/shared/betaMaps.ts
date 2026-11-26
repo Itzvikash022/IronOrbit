@@ -1,4 +1,4 @@
-// AUTO-GENERATED — terrain floors use public/maps/*.png; obstacles synced from art.
+// AUTO-GENERATED — terrain floors use custom terrain artwork (src/assets/images/terrain_*.jpg); obstacles synced to art.
 // Obstacle maps still seeded for turrets/grass/bombs via hazards.ts.
 import type { ArenaMap, BetaMapId } from './types.ts';
 
@@ -22,154 +22,154 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
     obstacles: [
       {
         id: 'du1',
-        x: 963,
-        y: 123,
+        x: 960,
+        y: 175,
         w: 178,
-        h: 108,
+        h: 105,
         kind: 'ruin'
       },
       {
         id: 'du2',
-        x: 1352,
-        y: 154,
-        w: 184,
-        h: 92,
+        x: 1350,
+        y: 205,
+        w: 185,
+        h: 87,
         kind: 'ruin'
       },
       {
         id: 'du3',
-        x: 1751,
-        y: 123,
+        x: 1750,
+        y: 175,
         w: 175,
-        h: 108,
+        h: 105,
         kind: 'ruin'
       },
       {
         id: 'du4',
         x: 485,
-        y: 279,
-        w: 136,
-        h: 135,
+        y: 320,
+        w: 135,
+        h: 120,
         kind: 'ruin'
       },
       {
         id: 'du5',
-        x: 2266,
-        y: 289,
-        w: 136,
-        h: 125,
+        x: 2265,
+        y: 320,
+        w: 135,
+        h: 120,
         kind: 'ruin'
       },
       {
         id: 'du6',
-        x: 778,
-        y: 424,
-        w: 58,
-        h: 142,
+        x: 775,
+        y: 445,
+        w: 60,
+        h: 130,
         kind: 'ruin'
       },
       {
         id: 'du7',
-        x: 1352,
-        y: 448,
-        w: 199,
-        h: 138,
+        x: 1350,
+        y: 480,
+        w: 170,
+        h: 112,
         kind: 'ruin'
       },
       {
         id: 'du8',
-        x: 1519,
-        y: 449,
-        w: 76,
-        h: 138,
+        x: 1520,
+        y: 452,
+        w: 74,
+        h: 140,
         kind: 'ruin'
       },
       {
         id: 'du9',
-        x: 1006,
-        y: 540,
-        w: 94,
-        h: 199,
+        x: 1005,
+        y: 552,
+        w: 93,
+        h: 180,
         kind: 'ruin'
       },
       {
         id: 'du10',
         x: 1790,
-        y: 540,
-        w: 91,
-        h: 199,
+        y: 552,
+        w: 92,
+        h: 180,
         kind: 'ruin'
       },
       {
         id: 'du11',
-        x: 1352,
-        y: 841,
-        w: 199,
-        h: 132,
+        x: 1350,
+        y: 838,
+        w: 188,
+        h: 104,
         kind: 'ruin'
       },
       {
         id: 'du12',
-        x: 1519,
-        y: 879,
-        w: 79,
-        h: 95,
+        x: 1538,
+        y: 816,
+        w: 57,
+        h: 126,
         kind: 'ruin'
       },
       {
         id: 'du13',
         x: 424,
-        y: 631,
-        w: 79,
-        h: 189,
+        y: 636,
+        w: 78,
+        h: 168,
         kind: 'ruin'
       },
       {
         id: 'du14',
-        x: 2384,
-        y: 631,
-        w: 85,
-        h: 189,
+        x: 2386,
+        y: 636,
+        w: 78,
+        h: 168,
         kind: 'ruin'
       },
       {
         id: 'du15',
-        x: 547,
-        y: 1048,
-        w: 154,
-        h: 145,
+        x: 545,
+        y: 1012,
+        w: 153,
+        h: 130,
         kind: 'ruin'
       },
       {
         id: 'du16',
-        x: 2187,
-        y: 1048,
-        w: 157,
-        h: 145,
+        x: 2188,
+        y: 1012,
+        w: 154,
+        h: 130,
         kind: 'ruin'
       },
       {
         id: 'du17',
-        x: 1068,
-        y: 1131,
-        w: 121,
-        h: 115,
+        x: 1065,
+        y: 1080,
+        w: 123,
+        h: 112,
         kind: 'ruin'
       },
       {
         id: 'du18',
         x: 1700,
-        y: 1127,
+        y: 1080,
         w: 124,
-        h: 118,
+        h: 112,
         kind: 'ruin'
       },
       {
         id: 'du19',
-        x: 1352,
-        y: 1187,
-        w: 184,
-        h: 112,
+        x: 1350,
+        y: 1132,
+        w: 185,
+        h: 102,
         kind: 'ruin'
       }
     ],
@@ -191,12 +191,12 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         y: 1260
       },
       {
-        x: 1422,
-        y: 119
+        x: 1440,
+        y: 150
       },
       {
-        x: 1446,
-        y: 1330
+        x: 1440,
+        y: 1320
       },
       {
         x: 700,
@@ -313,138 +313,250 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
     obstacles: [
       {
         id: 'gl1',
-        x: 818,
-        y: 39,
-        w: 151,
-        h: 128,
+        x: 814,
+        y: 98,
+        w: 146,
+        h: 112,
         kind: 'ice_wall'
       },
       {
         id: 'gl2',
-        x: 662,
-        y: 384,
-        w: 211,
-        h: 142,
+        x: 658,
+        y: 394,
+        w: 212,
+        h: 138,
         kind: 'ice_wall'
       },
       {
         id: 'gl3',
-        x: 498,
-        y: 360,
-        w: 106,
-        h: 145,
+        x: 510,
+        y: 386,
+        w: 98,
+        h: 120,
         kind: 'ice_wall'
       },
       {
         id: 'gl4',
-        x: 469,
-        y: 474,
-        w: 85,
-        h: 75,
+        x: 464,
+        y: 472,
+        w: 88,
+        h: 80,
         kind: 'ice_wall'
       },
       {
         id: 'gl5',
-        x: 578,
-        y: 493,
-        w: 70,
-        h: 65,
+        x: 574,
+        y: 492,
+        w: 72,
+        h: 78,
         kind: 'ice_wall'
       },
       {
         id: 'gl6',
-        x: 1081,
-        y: 456,
-        w: 334,
-        h: 457,
+        x: 1172,
+        y: 464,
+        w: 234,
+        h: 184,
         kind: 'ice_wall'
       },
       {
         id: 'gl7',
-        x: 1456,
-        y: 427,
-        w: 304,
-        h: 239,
+        x: 1078,
+        y: 586,
+        w: 266,
+        h: 196,
         kind: 'ice_wall'
       },
       {
         id: 'gl8',
-        x: 1526,
-        y: 776,
-        w: 175,
-        h: 182,
+        x: 1170,
+        y: 760,
+        w: 214,
+        h: 138,
         kind: 'ice_wall'
       },
       {
         id: 'gl9',
-        x: 1695,
-        y: 700,
-        w: 91,
-        h: 125,
+        x: 1454,
+        y: 456,
+        w: 286,
+        h: 210,
         kind: 'ice_wall'
       },
       {
         id: 'gl10',
-        x: 1391,
-        y: 784,
-        w: 103,
-        h: 139,
+        x: 1518,
+        y: 752,
+        w: 178,
+        h: 182,
         kind: 'ice_wall'
       },
       {
         id: 'gl11',
-        x: 1619,
-        y: 59,
-        w: 118,
-        h: 105,
+        x: 1682,
+        y: 696,
+        w: 100,
+        h: 128,
         kind: 'ice_wall'
       },
       {
         id: 'gl12',
-        x: 1747,
-        y: 0,
-        w: 880,
-        h: 581,
+        x: 1384,
+        y: 742,
+        w: 104,
+        h: 162,
         kind: 'ice_wall'
       },
       {
         id: 'gl13',
-        x: 2321,
-        y: 855,
-        w: 94,
-        h: 98,
+        x: 1612,
+        y: 92,
+        w: 120,
+        h: 124,
         kind: 'ice_wall'
       },
       {
         id: 'gl14',
-        x: 104,
-        y: 959,
-        w: 478,
-        h: 481,
+        x: 1744,
+        y: 72,
+        w: 228,
+        h: 258,
         kind: 'ice_wall'
       },
       {
         id: 'gl15',
-        x: 815,
-        y: 1034,
-        w: 337,
-        h: 356,
+        x: 1940,
+        y: 60,
+        w: 154,
+        h: 344,
         kind: 'ice_wall'
       },
       {
         id: 'gl16',
-        x: 1912,
-        y: 1177,
-        w: 178,
-        h: 159,
+        x: 2060,
+        y: 50,
+        w: 346,
+        h: 338,
         kind: 'ice_wall'
       },
       {
         id: 'gl17',
-        x: 2593,
-        y: 1243,
-        w: 103,
-        h: 82,
+        x: 2380,
+        y: 92,
+        w: 212,
+        h: 208,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl18',
+        x: 2200,
+        y: 386,
+        w: 138,
+        h: 144,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl19',
+        x: 2334,
+        y: 282,
+        w: 290,
+        h: 282,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl20',
+        x: 2314,
+        y: 822,
+        w: 98,
+        h: 124,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl21',
+        x: 2118,
+        y: 808,
+        w: 186,
+        h: 150,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl22',
+        x: 204,
+        y: 916,
+        w: 292,
+        h: 136,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl23',
+        x: 112,
+        y: 1046,
+        w: 460,
+        h: 310,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl24',
+        x: 568,
+        y: 1028,
+        w: 120,
+        h: 160,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl25',
+        x: 810,
+        y: 1006,
+        w: 336,
+        h: 312,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl26',
+        x: 1906,
+        y: 1152,
+        w: 186,
+        h: 140,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl27',
+        x: 2098,
+        y: 1188,
+        w: 104,
+        h: 126,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl28',
+        x: 2588,
+        y: 1152,
+        w: 114,
+        h: 116,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl29',
+        x: 982,
+        y: 268,
+        w: 140,
+        h: 110,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl30',
+        x: 886,
+        y: 236,
+        w: 48,
+        h: 50,
+        kind: 'ice_wall'
+      },
+      {
+        id: 'gl31',
+        x: 1024,
+        y: 196,
+        w: 48,
+        h: 52,
         kind: 'ice_wall'
       }
     ],
@@ -454,16 +566,16 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         y: 180
       },
       {
-        x: 2664,
+        x: 2640,
         y: 180
       },
       {
-        x: 72,
-        y: 1260
+        x: 78,
+        y: 1303
       },
       {
-        x: 2640,
-        y: 1212
+        x: 2664,
+        y: 1302
       },
       {
         x: 1440,
@@ -488,16 +600,16 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         y: 432
       },
       {
-        x: 170,
-        y: 927
+        x: 169,
+        y: 1014
       },
       {
         x: 368,
         y: 216
       },
       {
-        x: 616,
-        y: 1180
+        x: 609,
+        y: 1236
       }
     ],
     blueSpawns: [
@@ -510,7 +622,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         y: 1008
       },
       {
-        x: 2668,
+        x: 2632,
         y: 216
       },
       {
@@ -546,20 +658,20 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         y: 720
       },
       {
-        x: 900,
-        y: 240
+        x: 854,
+        y: 252
       },
       {
-        x: 1964,
-        y: 1142
+        x: 1958,
+        y: 1119
       },
       {
-        x: 1713,
-        y: 311
+        x: 1908,
+        y: 365
       },
       {
-        x: 780,
-        y: 1200
+        x: 772,
+        y: 1234
       }
     ],
     category: 'terrain',
@@ -621,9 +733,9 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       {
         id: 'ma5',
         x: 1635,
-        y: 11,
+        y: 16,
         w: 142,
-        h: 155,
+        h: 150,
         kind: 'rock'
       },
       {
@@ -740,7 +852,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       },
       {
         id: 'ma20',
-        x: 61,
+        x: 58,
         y: 728,
         w: 70,
         h: 90,
@@ -756,14 +868,22 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       },
       {
         id: 'ma22',
-        x: 1262,
-        y: 532,
-        w: 387,
-        h: 349,
+        x: 1344,
+        y: 556,
+        w: 236,
+        h: 314,
         kind: 'rock'
       },
       {
         id: 'ma23',
+        x: 1272,
+        y: 626,
+        w: 374,
+        h: 192,
+        kind: 'rock'
+      },
+      {
+        id: 'ma24',
         x: 1912,
         y: 610,
         w: 114,
@@ -771,7 +891,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma24',
+        id: 'ma25',
         x: 1903,
         y: 695,
         w: 116,
@@ -779,7 +899,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma25',
+        id: 'ma26',
         x: 2723,
         y: 678,
         w: 98,
@@ -787,15 +907,15 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma26',
-        x: 453,
-        y: 914,
-        w: 263,
-        h: 321,
+        id: 'ma27',
+        x: 462,
+        y: 932,
+        w: 244,
+        h: 294,
         kind: 'rock'
       },
       {
-        id: 'ma27',
+        id: 'ma28',
         x: 804,
         y: 1080,
         w: 139,
@@ -803,7 +923,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma28',
+        id: 'ma29',
         x: 1307,
         y: 1066,
         w: 73,
@@ -811,7 +931,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma29',
+        id: 'ma30',
         x: 1635,
         y: 1066,
         w: 170,
@@ -819,7 +939,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma30',
+        id: 'ma31',
         x: 2124,
         y: 1080,
         w: 128,
@@ -827,7 +947,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma31',
+        id: 'ma32',
         x: 1830,
         y: 1207,
         w: 76,
@@ -835,7 +955,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma32',
+        id: 'ma33',
         x: 2644,
         y: 1150,
         w: 139,
@@ -843,7 +963,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma33',
+        id: 'ma34',
         x: 2146,
         y: 239,
         w: 133,
@@ -851,7 +971,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         kind: 'rock'
       },
       {
-        id: 'ma34',
+        id: 'ma35',
         x: 2438,
         y: 394,
         w: 98,
@@ -999,106 +1119,130 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
     obstacles: [
       {
         id: 'st1',
-        x: 1117,
-        y: 3,
-        w: 245,
-        h: 488,
+        x: 1114,
+        y: 44,
+        w: 232,
+        h: 452,
         kind: 'rock'
       },
       {
         id: 'st2',
-        x: 577,
-        y: 237,
-        w: 98,
-        h: 83,
+        x: 568,
+        y: 274,
+        w: 104,
+        h: 92,
         kind: 'rock'
       },
       {
         id: 'st3',
-        x: 788,
+        x: 778,
         y: 526,
-        w: 77,
-        h: 52,
+        w: 84,
+        h: 66,
         kind: 'rock'
       },
       {
         id: 'st4',
-        x: 1522,
-        y: 306,
-        w: 59,
-        h: 46,
+        x: 1510,
+        y: 336,
+        w: 72,
+        h: 64,
         kind: 'rock'
       },
       {
         id: 'st5',
-        x: 1586,
-        y: 445,
-        w: 98,
-        h: 69,
+        x: 1574,
+        y: 442,
+        w: 112,
+        h: 92,
         kind: 'rock'
       },
       {
         id: 'st6',
-        x: 2554,
-        y: 304,
-        w: 62,
-        h: 29,
+        x: 2540,
+        y: 326,
+        w: 78,
+        h: 60,
         kind: 'rock'
       },
       {
-        id: 'st7',
-        x: 417,
-        y: 697,
-        w: 356,
-        h: 334,
+        id: 'st7a',
+        x: 456,
+        y: 686,
+        w: 234,
+        h: 106,
+        kind: 'rock'
+      },
+      {
+        id: 'st7b',
+        x: 414,
+        y: 782,
+        w: 324,
+        h: 198,
         kind: 'rock'
       },
       {
         id: 'st8',
-        x: 1502,
-        y: 828,
-        w: 110,
-        h: 83,
+        x: 1492,
+        y: 788,
+        w: 120,
+        h: 96,
         kind: 'rock'
       },
       {
         id: 'st9',
-        x: 1393,
-        y: 1083,
-        w: 431,
-        h: 297,
+        x: 1440,
+        y: 1022,
+        w: 300,
+        h: 90,
         kind: 'rock'
       },
       {
         id: 'st10',
-        x: 1980,
-        y: 1151,
-        w: 80,
-        h: 56,
+        x: 1384,
+        y: 1090,
+        w: 420,
+        h: 200,
         kind: 'rock'
       },
       {
         id: 'st11',
-        x: 2028,
-        y: 603,
-        w: 605,
-        h: 247,
+        x: 1966,
+        y: 1084,
+        w: 96,
+        h: 84,
         kind: 'rock'
       },
       {
         id: 'st12',
-        x: 2184,
-        y: 775,
-        w: 176,
-        h: 210,
+        x: 2100,
+        y: 544,
+        w: 460,
+        h: 100,
         kind: 'rock'
       },
       {
         id: 'st13',
-        x: 1128,
-        y: 570,
-        w: 44,
-        h: 26,
+        x: 2030,
+        y: 612,
+        w: 584,
+        h: 182,
+        kind: 'rock'
+      },
+      {
+        id: 'st14',
+        x: 2206,
+        y: 784,
+        w: 136,
+        h: 178,
+        kind: 'rock'
+      },
+      {
+        id: 'st15',
+        x: 1122,
+        y: 562,
+        w: 52,
+        h: 52,
         kind: 'rock'
       }
     ],
@@ -1124,16 +1268,16 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         y: 150
       },
       {
-        x: 1359,
-        y: 1342
+        x: 1440,
+        y: 1320
       },
       {
-        x: 691,
-        y: 665
+        x: 724,
+        y: 700
       },
       {
         x: 2146,
-        y: 572
+        y: 828
       }
     ],
     redSpawns: [
@@ -1174,12 +1318,12 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
     ],
     redBase: {
       x: 224,
-      y: 500,
+      y: 880,
       radius: 68
     },
     blueBase: {
       x: 2656,
-      y: 500,
+      y: 880,
       radius: 68
     },
     crateZones: [
@@ -1188,8 +1332,8 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         y: 360
       },
       {
-        x: 1422,
-        y: 1049
+        x: 1398,
+        y: 1056
       },
       {
         x: 900,
@@ -1204,8 +1348,8 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
         y: 240
       },
       {
-        x: 1949,
-        y: 1218
+        x: 1980,
+        y: 1200
       },
       {
         x: 1980,
@@ -1274,7 +1418,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       },
       {
         id: 'se5',
-        x: 900,
+        x: 890,
         y: 420,
         w: 140,
         h: 160,
@@ -1282,7 +1426,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       },
       {
         id: 'se6',
-        x: 1840,
+        x: 1850,
         y: 420,
         w: 140,
         h: 160,
@@ -1290,7 +1434,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       },
       {
         id: 'se7',
-        x: 900,
+        x: 890,
         y: 860,
         w: 140,
         h: 160,
@@ -1298,7 +1442,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       },
       {
         id: 'se8',
-        x: 1840,
+        x: 1850,
         y: 860,
         w: 140,
         h: 160,
@@ -1306,34 +1450,34 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       },
       {
         id: 'se9',
-        x: 1100,
-        y: 200,
+        x: 1120,
+        y: 180,
         w: 50,
-        h: 230,
+        h: 210,
         kind: 'barrier'
       },
       {
         id: 'se10',
-        x: 1730,
-        y: 200,
+        x: 1710,
+        y: 180,
         w: 50,
-        h: 230,
+        h: 210,
         kind: 'barrier'
       },
       {
         id: 'se11',
-        x: 1100,
-        y: 1010,
+        x: 1120,
+        y: 1050,
         w: 50,
-        h: 230,
+        h: 210,
         kind: 'barrier'
       },
       {
         id: 'se12',
-        x: 1730,
-        y: 1010,
+        x: 1710,
+        y: 1050,
         w: 50,
-        h: 230,
+        h: 210,
         kind: 'barrier'
       },
       {
@@ -1608,7 +1752,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       {
         id: 'ov13',
         x: 440,
-        y: 700,
+        y: 635,
         w: 80,
         h: 170,
         kind: 'ruin'
@@ -1616,7 +1760,7 @@ export const BETA_MAPS: Record<BetaMapId, ArenaMap> = {
       {
         id: 'ov14',
         x: 2360,
-        y: 700,
+        y: 635,
         w: 80,
         h: 170,
         kind: 'ruin'

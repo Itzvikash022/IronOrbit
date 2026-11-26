@@ -603,10 +603,7 @@ export class GameRoom {
     if (!session) return;
     const tank = this.tanks.find((t) => t.id === playerId);
     if (tank?.alive) {
-      // Cap flip backlog under spam; still flip on accepted presses
-      if (session.flipState.pendingClicks < 6) {
-        registerFireClick(session.flipState, Date.now());
-      }
+      registerFireClick(session.flipState, Date.now());
     }
     if (session.pendingShots < 3) {
       session.pendingShots += 1;

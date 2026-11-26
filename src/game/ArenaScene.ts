@@ -3,13 +3,14 @@ import { DEFAULT_ACTION_BIND } from '../shared/actionBind';
 import { DEFAULT_GAME_SETTINGS, POWERUP_META } from '../shared/config';
 import { ARENA_MAPS } from '../shared/maps';
 import {
-  computeArenaCameraZoom,
+  computeArenaCameraScale,
   normalizeAngle,
   registerFireClick,
   RotationFlipState,
   stepRotationFlip,
   stepTankMotion,
 } from '../shared/physics';
+import { BETA_FLOOR_URLS } from './betaFloorAssets';
 import { canTankFire } from '../shared/rules';
 import {
   ActionBind,
@@ -57,6 +58,7 @@ interface ClientProjectileVisual {
   y: number;
   vx: number;
   vy: number;
+  isDouble: boolean;
 }
 
 export interface ArenaSceneBridge {
@@ -117,6 +119,8 @@ export class ArenaScene extends Phaser.Scene {
   // Juice / camera
   private hitstopTimer = 0;
   private shakeTrauma = 0;
+  private wasShaking = false;
+  private muzzleFlashTimer = 0;
   private camFollowX = 1440;
   private camFollowY = 720;
   private serverTimeOffset = 0;
@@ -151,9 +155,9 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // Baked terrain floors (authored art); missing files are fine — MapRenderer falls back to tiles.
-    for (const id of ['dunes', 'glacier', 'magma', 'storm'] as const) {
-      this.load.image(`floor_${id}`, `/maps/${id}.png`);
+    // High-res top-down ground plates for all 7 beta maps (obstacles are drawn vector-exact on top)
+    for (const [id, url] of Object.entries(BETA_FLOOR_URLS)) {
+      this.load.image(`floor_${id}`, url);
     }
   }
 
@@ -170,25 +174,31 @@ export class ArenaScene extends Phaser.Scene {
 
     this.setupInputs();
     this.scale.on('resize', this.handleResize, this);
+    const onWinResize = () => this.handleResize();
+    window.addEventListener('resize', onWinResize);
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
       this.scale.off('resize', this.handleResize, this);
+      window.removeEventListener('resize', onWinResize);
     });
     this.enterAttractMode(this.activeMapId);
   }
 
   private handleResize(): void {
     const map = ARENA_MAPS[this.activeMapId];
+    this.cameras.main.setViewport(0, 0, this.scale.width, this.scale.height);
     this.applyCameraZoom(map.width, map.height);
+    this.cameras.main.centerOn(map.width * 0.5, map.height * 0.5);
   }
 
-  private applyCameraZoom(mapWidth: number, mapHeight: number): void {
-    const zoom = computeArenaCameraZoom(
+  private applyCameraZoom(mapWidth: number, mapHeight: number, shakeScale = 1): void {
+    const { zoomX, zoomY } = computeArenaCameraScale(
       this.scale.width,
       this.scale.height,
       mapWidth,
       mapHeight
     );
-    this.cameras.main.setZoom(zoom);
+    this.cameras.main.setViewport(0, 0, this.scale.width, this.scale.height);
+    this.cameras.main.setZoom(zoomX * shakeScale, zoomY * shakeScale);
   }
 
   private setupInputs(): void {
@@ -257,8 +267,8 @@ export class ArenaScene extends Phaser.Scene {
     const serverNow = nowPerf + this.serverTimeOffset;
     const canFire =
       this.pendingLocalShots < 2 && canTankFire(this.localPredTank, serverNow, this.settings);
-    // Always sync flip via shoot when fireable; otherwise throttle flip-only spam.
-    if (canFire || nowPerf - this.lastShootSentAt >= 90) {
+    // Always sync flip via shoot when fireable; light 25ms guard for flip-only spam.
+    if (canFire || nowPerf - this.lastShootSentAt >= 25) {
       if (canFire) this.pendingLocalShots += 1;
       this.lastShootSentAt = nowPerf;
       this.bridge?.onSendShoot(this.localPredTank.angle);
@@ -496,15 +506,18 @@ export class ArenaScene extends Phaser.Scene {
           .setRotation(Math.atan2(p.vy, p.vx))
           .setVisible(true)
           .setActive(true);
-        vis = { sprite, x: p.x, y: p.y, vx: p.vx, vy: p.vy };
+        vis = { sprite, x: p.x, y: p.y, vx: p.vx, vy: p.vy, isDouble: p.isDoubleDamage };
         this.projectileVisuals.set(p.id, vis);
       } else {
         vis.x = p.x;
         vis.y = p.y;
         vis.vx = p.vx;
         vis.vy = p.vy;
+        if (vis.isDouble !== p.isDoubleDamage) {
+          vis.isDouble = p.isDoubleDamage;
+          vis.sprite.setTexture(p.isDoubleDamage ? 'proj_double' : 'proj_normal');
+        }
         vis.sprite
-          .setTexture(p.isDoubleDamage ? 'proj_double' : 'proj_normal')
           .setPosition(p.x, p.y)
           .setRotation(Math.atan2(p.vy, p.vx));
       }
@@ -567,20 +580,14 @@ export class ArenaScene extends Phaser.Scene {
     const entry = this.tankVisuals.get(shooterId);
     entry?.sprite.triggerRecoil();
 
-    // Muzzle flash + directional sparks (single tween; kill prior to avoid stacking)
+    // Zero-alloc muzzle flash timer + directional sparks
     if (this.muzzleFlash) {
-      this.tweens.killTweensOf(this.muzzleFlash);
       this.muzzleFlash
         .setPosition(proj.x, proj.y)
         .setRotation(aimAngle)
         .setVisible(true)
         .setAlpha(1);
-      this.tweens.add({
-        targets: this.muzzleFlash,
-        alpha: 0,
-        duration: 75,
-        onComplete: () => this.muzzleFlash?.setVisible(false),
-      });
+      this.muzzleFlashTimer = 0.075;
     }
     this.particles.emitDirectional(proj.x, proj.y, aimAngle, 0.55, 5, 0xfbbf24);
   }
@@ -785,7 +792,17 @@ export class ArenaScene extends Phaser.Scene {
       vis.icon.setY(Math.sin(nowPerf * 0.004) * 2.5);
     }
 
-    // 5. Full-map camera centered on arena + light trauma shake
+    // 4b. Fade muzzle flash without allocating Phaser tweens
+    if (this.muzzleFlashTimer > 0 && this.muzzleFlash) {
+      this.muzzleFlashTimer = Math.max(0, this.muzzleFlashTimer - rawDt);
+      if (this.muzzleFlashTimer === 0) {
+        this.muzzleFlash.setVisible(false);
+      } else {
+        this.muzzleFlash.setAlpha(this.muzzleFlashTimer / 0.075);
+      }
+    }
+
+    // 5. Full-map camera centered on arena + light trauma shake without exposing border edges
     {
       this.camFollowX = map.width * 0.5;
       this.camFollowY = map.height * 0.5;
@@ -793,10 +810,15 @@ export class ArenaScene extends Phaser.Scene {
       let shakeX = 0;
       let shakeY = 0;
       if (this.shakeTrauma > 0) {
+        this.wasShaking = true;
         const mag = this.shakeTrauma * this.shakeTrauma * 10;
         shakeX = (Math.random() * 2 - 1) * mag;
         shakeY = (Math.random() * 2 - 1) * mag;
+        this.applyCameraZoom(map.width, map.height, 1 + this.shakeTrauma * 0.015);
         this.shakeTrauma = Math.max(0, this.shakeTrauma - rawDt * 2.4);
+      } else if (this.wasShaking) {
+        this.wasShaking = false;
+        this.applyCameraZoom(map.width, map.height, 1);
       }
 
       this.cameras.main.centerOn(this.camFollowX + shakeX, this.camFollowY + shakeY);
@@ -852,8 +874,9 @@ export class ArenaScene extends Phaser.Scene {
     const status = this.hazards.getStatus();
     const stunnedUntil = this.localPredTank?.stunnedUntil ?? 0;
     const stunMsLeft = Math.max(0, Math.round(stunnedUntil - serverNow));
-    const key = `::`;
-    if (key === this.lastEnvKey && nowPerf - this.lastEnvSentAt < 500) return;
+    const key = `${status.windActive ? 1 : 0}:${status.windWarning ? 1 : 0}:${status.windStrength.toFixed(2)}:${Math.ceil(stunMsLeft / 100)}`;
+    const active = status.windActive || status.windWarning || stunMsLeft > 0;
+    if (key === this.lastEnvKey && (!active || nowPerf - this.lastEnvSentAt < 500)) return;
     this.lastEnvKey = key;
     this.lastEnvSentAt = nowPerf;
     this.bridge.onEnvStatus({ ...status, stunMsLeft });

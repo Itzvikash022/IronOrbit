@@ -360,7 +360,7 @@ test('bots: solo CTF allowed, second human blocked while CTF+bots, kill modes al
   const io = new SocketIOServer(httpServer, { cors: { origin: '*' } });
   const roomManager = attachSocketServer(io);
 
-  await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
   const address = httpServer.address();
   assert.ok(address && typeof address !== 'string');
   const url = `http://127.0.0.1:${address.port}`;
@@ -369,7 +369,7 @@ test('bots: solo CTF allowed, second human blocked while CTF+bots, kill modes al
   const guest = await connectClient(url);
 
   try {
-    const created = await new Promise((resolve) => {
+    const created = await new Promise<{ ok: boolean; room: RoomInfo }>((resolve) => {
       host.emit('room:create', { playerId: 'hostB', nickname: 'HostBot' }, resolve);
     });
     assert.equal(created.ok, true);
@@ -378,12 +378,12 @@ test('bots: solo CTF allowed, second human blocked while CTF+bots, kill modes al
     host.emit('room:config', { mode: 'ctf' });
     await new Promise((r) => setTimeout(r, 40));
 
-    const botsOk = await new Promise((resolve) => {
+    const botsOk = await new Promise<{ ok: boolean }>((resolve) => {
       host.emit('room:bots', { count: 2, difficulty: 'noob' }, resolve);
     });
     assert.equal(botsOk.ok, true);
 
-    const blocked = await new Promise((resolve) => {
+    const blocked = await new Promise<{ ok: boolean; error: string }>((resolve) => {
       guest.emit('room:join', { code, playerId: 'guestB', nickname: 'GuestBot' }, resolve);
     });
     assert.equal(blocked.ok, false);
@@ -392,7 +392,7 @@ test('bots: solo CTF allowed, second human blocked while CTF+bots, kill modes al
     host.emit('room:config', { mode: 'tdm' });
     await new Promise((r) => setTimeout(r, 40));
 
-    const joined = await new Promise((resolve) => {
+    const joined = await new Promise<{ ok: boolean; room: RoomInfo }>((resolve) => {
       guest.emit('room:join', { code, playerId: 'guestB', nickname: 'GuestBot' }, resolve);
     });
     assert.equal(joined.ok, true);

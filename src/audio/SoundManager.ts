@@ -1,9 +1,13 @@
 export class SoundManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private noiseBuffer: AudioBuffer | null = null;
   private volume = 0.65;
   private muted = false;
   private lastFireAtMs = 0;
+  private lastImpactAtMs = 0;
+  private activeVoices = 0;
+  private readonly maxVoices = 12;
 
   private ensureContext(): AudioContext | null {
     if (this.muted) return null;
@@ -23,6 +27,36 @@ export class SoundManager {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  private getNoiseBuffer(ctx: AudioContext): AudioBuffer {
+    if (this.noiseBuffer && this.noiseBuffer.sampleRate === ctx.sampleRate) {
+      return this.noiseBuffer;
+    }
+    const bufSize = Math.floor(ctx.sampleRate * 0.32);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    }
+    this.noiseBuffer = buf;
+    return buf;
+  }
+
+  private trackVoice(src: AudioScheduledSourceNode, nodes: AudioNode[]): boolean {
+    if (this.activeVoices >= this.maxVoices) return false;
+    this.activeVoices += 1;
+    src.onended = () => {
+      this.activeVoices = Math.max(0, this.activeVoices - 1);
+      for (const n of nodes) {
+        try {
+          n.disconnect();
+        } catch {
+          /* ignore already disconnected */
+        }
+      }
+    };
+    return true;
   }
 
   setVolume(vol: number): void {
@@ -67,6 +101,7 @@ export class SoundManager {
 
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
+    if (!this.trackVoice(osc, [osc, gain])) return;
     osc.type = isDouble ? 'sawtooth' : 'triangle';
     osc.frequency.setValueAtTime(this.jitter(isDouble ? 240 : 300), now);
     osc.frequency.exponentialRampToValueAtTime(58, now + 0.12);
@@ -81,12 +116,16 @@ export class SoundManager {
   }
 
   playImpact(hitTank: boolean): void {
+    const wallNow = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (wallNow - this.lastImpactAtMs < 45) return;
+    this.lastImpactAtMs = wallNow;
     const ctx = this.ensureContext();
     if (!ctx || !this.masterGain) return;
     const now = ctx.currentTime;
 
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
+    if (!this.trackVoice(osc, [osc, gain])) return;
     osc.type = hitTank ? 'square' : 'sine';
     osc.frequency.setValueAtTime(this.jitter(hitTank ? 185 : 130), now);
     osc.frequency.exponentialRampToValueAtTime(42, now + 0.09);
@@ -108,36 +147,34 @@ export class SoundManager {
     // Low boom oscillator
     const osc = ctx.createOscillator();
     const oscGain = ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(110, now);
-    osc.frequency.exponentialRampToValueAtTime(28, now + 0.36);
-    oscGain.gain.setValueAtTime(0.36, now);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-    osc.connect(oscGain);
-    oscGain.connect(this.masterGain);
-    osc.start(now);
-    osc.stop(now + 0.4);
-
-    // Filtered noise burst
-    const bufSize = Math.floor(ctx.sampleRate * 0.32);
-    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+    if (this.trackVoice(osc, [osc, oscGain])) {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(110, now);
+      osc.frequency.exponentialRampToValueAtTime(28, now + 0.36);
+      oscGain.gain.setValueAtTime(0.36, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+      osc.connect(oscGain);
+      oscGain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.4);
     }
+
+    // Cached filtered noise burst
     const noise = ctx.createBufferSource();
-    noise.buffer = buf;
+    noise.buffer = this.getNoiseBuffer(ctx);
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(950, now);
     filter.frequency.exponentialRampToValueAtTime(160, now + 0.32);
     const nGain = ctx.createGain();
-    nGain.gain.setValueAtTime(0.28, now);
-    nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
-    noise.connect(filter);
-    filter.connect(nGain);
-    nGain.connect(this.masterGain);
-    noise.start(now);
+    if (this.trackVoice(noise, [noise, filter, nGain])) {
+      nGain.gain.setValueAtTime(0.28, now);
+      nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+      noise.connect(filter);
+      filter.connect(nGain);
+      nGain.connect(this.masterGain);
+      noise.start(now);
+    }
   }
 
   playPowerUp(): void {

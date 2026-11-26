@@ -189,10 +189,10 @@ const MAPS = [
     left: [
       [520, 240, 210, 110, 'building'],
       [520, 1090, 210, 110, 'building'],
-      [900, 420, 140, 160, 'bunker'],
-      [900, 860, 140, 160, 'bunker'],
-      [1100, 200, 50, 230, 'barrier'],
-      [1100, 1010, 50, 230, 'barrier'],
+      [890, 420, 140, 160, 'bunker'],
+      [890, 860, 140, 160, 'bunker'],
+      [1120, 180, 50, 210, 'barrier'],
+      [1120, 1050, 50, 210, 'barrier'],
       [1180, 630, 150, 180, 'bunker'],
       [420, 620, 50, 200, 'barrier'],
     ],
@@ -223,7 +223,7 @@ const MAPS = [
       [960, 560, 150, 150, 'ruin'],
       [960, 220, 100, 100, 'tree'],
       [1020, 1090, 100, 100, 'tree'],
-      [440, 700, 80, 170, 'ruin'],
+      [440, 635, 80, 170, 'ruin'],
       [1200, 360, 90, 90, 'tree'],
       [1200, 990, 90, 90, 'tree'],
     ],
@@ -290,19 +290,19 @@ function validate(m) {
   for (const [g, pts] of Object.entries(spawnGroups)) {
     for (const p of pts) {
       for (const o of m.obstacles) {
-        if (circleRectDist(p.x, p.y, o) < TANK_RADIUS + 4) errors.push(tag(`${g} spawn (${p.x},${p.y}) blocked by ${o.id}`));
+        if (circleRectDist(p.x, p.y, o) < TANK_RADIUS + 8) errors.push(tag(`${g} spawn (${p.x},${p.y}) blocked by ${o.id}`));
       }
     }
   }
   for (const c of m.crateZones) {
     for (const o of m.obstacles) {
-      if (circleRectDist(c.x, c.y, o) < CRATE_RADIUS + 10) errors.push(tag(`crate (${c.x},${c.y}) blocked by ${o.id}`));
+      if (circleRectDist(c.x, c.y, o) < CRATE_RADIUS + 14) errors.push(tag(`crate (${c.x},${c.y}) blocked by ${o.id}`));
     }
   }
   for (let i = 0; i < m.obstacles.length; i++) {
     for (let j = i + 1; j < m.obstacles.length; j++) {
       const g = rectGap(m.obstacles[i], m.obstacles[j]);
-      if (g < 48) errors.push(tag(`${m.obstacles[i].id} / ${m.obstacles[j].id} gap ${g.toFixed(0)} < 48`));
+      if (g < 60) errors.push(tag(`${m.obstacles[i].id} / ${m.obstacles[j].id} gap ${g.toFixed(0)} < 60`));
     }
   }
 }

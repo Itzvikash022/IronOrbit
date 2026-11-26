@@ -197,17 +197,7 @@ for (const id of Object.keys(META)) {
   const errors = validate(map);
   if (errors.length) {
     console.error(id, errors);
-    // drop conflicting obstacles
-    map.obstacles = map.obstacles.filter((o) => {
-      const probe = { ...map, obstacles: [o] };
-      return validate(probe).length === 0;
-    });
-    const e2 = validate(map);
-    if (e2.length) {
-      console.error(id, 'still', e2);
-      process.exit(1);
-    }
-    console.log(id, 'dropped conflicts, left', map.obstacles.length);
+    process.exit(1);
   }
   BETA[id] = map;
 }
@@ -217,7 +207,7 @@ const body = JSON.stringify(BETA, null, 2)
   .replace(/"/g, "'");
 
 const out =
-  `// AUTO-GENERATED — terrain floors use public/maps/*.png; obstacles synced from art.\n` +
+  `// AUTO-GENERATED — terrain floors use custom terrain artwork (src/assets/images/terrain_*.jpg); obstacles synced to art.\n` +
   `// Obstacle maps still seeded for turrets/grass/bombs via hazards.ts.\n` +
   `import type { ArenaMap, BetaMapId } from './types.ts';\n\n` +
   `export const BETA_MAPS: Record<BetaMapId, ArenaMap> = ${body};\n`;

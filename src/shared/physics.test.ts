@@ -4,6 +4,7 @@ import { ARENA_MAPS, MAP_IDS } from './maps';
 import { CRATE_RADIUS, DEFAULT_GAME_SETTINGS, TANK_RADIUS } from './config';
 import {
   circleIntersectsRect,
+  computeArenaCameraScale,
   computeArenaCameraZoom,
   findValidCratePosition,
   registerFireClick,
@@ -72,6 +73,25 @@ test('all 14 arena maps have non-overlapping spawns, bases, and crate zones', ()
           false,
           `${id} crate zone (${cz.x},${cz.y}) overlaps obstacle ${obs.id}`
         );
+      }
+    }
+    if (map.beta) {
+      for (let i = 0; i < map.obstacles.length; i++) {
+        const a = map.obstacles[i];
+        assert.ok(a.x >= 0 && a.y >= 0 && a.x + a.w <= map.width && a.y + a.h <= map.height, `${id} ${a.id} in bounds`);
+        if (!map.bakedFloor) {
+          // Mirror parity check for fair symmetric obstacle beta maps
+          const mirrorFound = map.obstacles.some(
+            (b) => Math.abs(b.x - (map.width - a.x - a.w)) <= 1 && b.y === a.y && b.w === a.w && b.h === a.h
+          );
+          assert.ok(mirrorFound, `${id} obstacle ${a.id} missing symmetric mirror`);
+          for (let j = i + 1; j < map.obstacles.length; j++) {
+            const b = map.obstacles[j];
+            const dx = Math.max(a.x - (b.x + b.w), b.x - (a.x + a.w), 0);
+            const dy = Math.max(a.y - (b.y + b.h), b.y - (a.y + a.h), 0);
+            assert.ok(Math.hypot(dx, dy) >= 60, `${id} obstacle gap ${a.id}/${b.id} must be >= 60px`);
+          }
+        }
       }
     }
   }
@@ -172,16 +192,19 @@ test('selectSafeSpawn picks spawn farthest from living enemy and crate placement
   }
 });
 
-test('computeArenaCameraZoom covers the viewport', () => {
-  const z1440 = computeArenaCameraZoom(1440, 900, 2880, 1440);
-  assert.ok(Math.abs(z1440 - Math.max(1440 / 2880, 900 / 1440)) < 1e-9);
-
-  const z1280 = computeArenaCameraZoom(1280, 720, 2880, 1440);
-  assert.ok(Math.abs(z1280 - Math.max(1280 / 2880, 720 / 1440)) < 1e-9);
-
-  // Arena always covers both viewport axes (edges may crop)
-  assert.ok(2880 * z1440 + 1e-6 >= 1440);
-  assert.ok(1440 * z1440 + 1e-6 >= 900);
+test('computeArenaCameraScale fills 100% of any viewport with zero border bleed or cropping', () => {
+  for (const [vw, vh] of [
+    [1440, 900],
+    [1920, 1080],
+    [1280, 720],
+    [1920, 820],
+    [1024, 768],
+  ]) {
+    const { zoomX, zoomY } = computeArenaCameraScale(vw, vh, 2880, 1440);
+    assert.ok(Math.abs(2880 * zoomX - vw) < 1e-6, `${vw}x${vh} width fill`);
+    assert.ok(Math.abs(1440 * zoomY - vh) < 1e-6, `${vw}x${vh} height fill`);
+  }
+  assert.ok(Math.abs(computeArenaCameraZoom(1440, 900, 2880, 1440) - 0.5) < 1e-9);
 });
 
 test('click-to-flip rotation waits for shooting to stop, respects click parity on spam, and applies when rotation resumes', () => {
